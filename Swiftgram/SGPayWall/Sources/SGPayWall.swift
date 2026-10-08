@@ -263,7 +263,6 @@ enum SGProFeatureId: Hashable {
     case filter
     case notifications
     case toolbar
-    case icons
 }
 
 
@@ -286,10 +285,6 @@ struct SGProFeature: Identifiable {
             FeatureIcon(icon: "bell.badge.slash.fill", backgroundColor: .red)
         case .toolbar:
             FeatureIcon(icon: "bold.underline", backgroundColor: .blue, iconSize: 16)
-        case .icons:
-            Image("SwiftgramSettings")
-                .resizable()
-                .frame(width: 32, height: 32)
         @unknown default:
             Image("SwiftgramPro")
                 .resizable()
@@ -307,8 +302,6 @@ struct SGProFeature: Identifiable {
             return Image("ProDetailsMute")
         case .toolbar:
             return Image("ProDetailsFormatting")
-        case .icons:
-            return Image("ProDetailsIcons")
         @unknown default:
             return Image("pro")
         }
@@ -364,7 +357,6 @@ struct SGPayWallView: View {
         return [
             SGProFeature(id: .toolbar, title: "PayWall.InputToolbar.Title".i18n(lang), subtitle: "PayWall.InputToolbar.Notice".i18n(lang), description: "PayWall.InputToolbar.Description".i18n(lang)),
             SGProFeature(id: .filter, title: "PayWall.MessageFilter.Title".i18n(lang), subtitle: "PayWall.MessageFilter.Notice".i18n(lang), description: "PayWall.MessageFilter.Description".i18n(lang)),
-            SGProFeature(id: .icons, title: "PayWall.AppIcons.Title".i18n(lang), subtitle: "PayWall.AppIcons.Notice".i18n(lang), description: nil),
             SGProFeature(id: .backup, title: "PayWall.SessionBackup.Title".i18n(lang), subtitle: "PayWall.SessionBackup.Notice".i18n(lang), description: "PayWall.SessionBackup.Description".i18n(lang)),
             SGProFeature(id: .notifications, title: "PayWall.Notifications.Title".i18n(lang), subtitle: "PayWall.Notifications.Notice".i18n(lang), description: "PayWall.Notifications.Description".i18n(lang)),
         ]
@@ -383,7 +375,7 @@ struct SGPayWallView: View {
                         
                         // Title and Subtitle
                         VStack(spacing: 8) {
-                            Text("Swiftgram Pro")
+                            Text("Airygram Pro")
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
                             

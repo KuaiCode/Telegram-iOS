@@ -733,19 +733,6 @@ private func premiumSearchableItems(context: AccountContext) -> [SettingsSearcha
     
     items.append(
         SettingsSearchableItem(
-            id: "premium/app-icons",
-            title: strings.Premium_AppIcon,
-            alternate: synonyms(strings.SettingsSearch_Synonyms_Premium_AppIcon),
-            icon: icon,
-            breadcrumbs: [strings.Settings_Premium],
-            present: { context, _, present in
-                presentDemo(.appIcons, present)
-            }
-        )
-    )
-    
-    items.append(
-        SettingsSearchableItem(
             id: "business",
             title: strings.Settings_Business,
             alternate: [],
@@ -4071,16 +4058,6 @@ private func appearanceSearchableItems(context: AccountContext) -> [SettingsSear
                     let settings = view.entries[ApplicationSpecificSharedDataKeys.presentationThemeSettings]?.get(PresentationThemeSettings.self) ?? PresentationThemeSettings.defaultSettings
                     present(.push, BubbleSettingsController(context: context, presentationThemeSettings: settings))
                 })
-            }
-        ),
-        SettingsSearchableItem(
-            id: "appearance/app-icon",
-            title: strings.Appearance_AppIcon.capitalized,
-            alternate: [],
-            icon: icon,
-            breadcrumbs: [strings.Settings_Appearance],
-            present: { context, _, present in
-                presentAppearanceSettings(context, present, .icon)
             }
         ),
         SettingsSearchableItem(

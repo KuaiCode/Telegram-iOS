@@ -316,47 +316,6 @@ filegroup(
     ], exclude = ["Telegram-iOS/DefaultAppIcon.xcassets/**/.*"]),
 )
 
-# MARK: Swiftgram alternative icons
-alternate_icon_folders = [
-    "SGDefault",
-    "SGBlack",
-    "SGLegacy",
-    "SGInverted",
-    "SGWhite",
-    "SGNight",
-    "SGSky",
-    "SGTitanium",
-    "SGNeon",
-    "SGNeonBlue",
-    "SGGlass",
-    "SGSparkling",
-    "SGBeta",
-    "SGPro",
-    "SGGold",
-    "SGDucky",
-    "SGDay"
-]
-
-composer_icon_folders = ["Swiftgram"]
-
-[
-    filegroup(
-        name = "{}".format(name),
-        srcs = glob([
-            "Telegram-iOS/{}.alticon/*.png".format(name),
-        ]),
-    ) for name in alternate_icon_folders
-]
-
-[
-    filegroup(
-        name = "{}_icon".format(name),
-        srcs = glob([
-            "Telegram-iOS/{}.icon/**/*".format(name),
-        ]),
-    ) for name in composer_icon_folders
-]
-
 filegroup(
     name = "LaunchScreen",
     srcs = glob([
@@ -649,7 +608,7 @@ plist_fragment(
     template =
     """
     <key>CFBundleDisplayName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     """
 )
 
@@ -906,33 +865,6 @@ genrule(
     ]
 )
 
-genrule(
-    name = "GenerateAddAlternateIcons",
-    srcs = [
-        "Telegram-iOS/AddAlternateIcons.sh",
-    ],
-    cmd_bash =
-"""
-    cat $(location Telegram-iOS/AddAlternateIcons.sh) >> $(location AddAlternateIcons.sh)
-""",
-    outs = [
-        "AddAlternateIcons.sh",
-    ],
-    executable = True,
-    visibility = [
-        "//visibility:public",
-    ]
-)
-
-sh_binary(
-    name = "AddAlternateIcons",
-    data = [
-        "Telegram-iOS/AlternateIcons.plist",
-        "Telegram-iOS/AlternateIcons-iPad.plist",
-    ],
-    srcs = [":GenerateAddAlternateIcons"],
-)
-
 plist_fragment(
     name = "TelegramUIInfoPlist",
     extension = "plist",
@@ -990,7 +922,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.Share</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1082,7 +1014,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.NotificationContent</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1189,7 +1121,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.Widget</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1302,7 +1234,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.SiriIntents</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1435,9 +1367,9 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.SGActionRequestHandler</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundleDisplayName</key>
-    <string>Open in Swiftgram</string>
+    <string>Open in Airygram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
 	<key>NSExtension</key>
@@ -1574,7 +1506,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.BroadcastUpload</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1668,7 +1600,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.NotificationService</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1737,11 +1669,11 @@ plist_fragment(
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}</string>
     <key>CFBundleName</key>
-    <string>Swiftgram</string>
+    <string>Airygram</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
@@ -1799,17 +1731,17 @@ plist_fragment(
     <key>NSCameraUsageDescription</key>
     <string>We need this so that you can take and share photos and videos.</string>
     <key>NSContactsUsageDescription</key>
-    <string>Swiftgram stores your contacts heavily encrypted in the Telegram cloud to let you connect with your friends across all your devices.</string>
+    <string>Airygram stores your contacts heavily encrypted in the Telegram cloud to let you connect with your friends across all your devices.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>You can use Face ID to unlock the app.</string>
     <key>NSLocationAlwaysUsageDescription</key>
-    <string>When you send your location to your friends, Swiftgram needs access to show them a map. You also need this to send locations from an Apple Watch.</string>
+    <string>When you send your location to your friends, Airygram needs access to show them a map. You also need this to send locations from an Apple Watch.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>When you send your location to your friends, Swiftgram needs access to show them a map.</string>
+    <string>When you send your location to your friends, Airygram needs access to show them a map.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>We need this so that you can record and share voice messages and videos with sound.</string>
     <key>NSMotionUsageDescription</key>
-    <string>When you send your location to your friends, Swiftgram needs access to show them a map.</string>
+    <string>When you send your location to your friends, Airygram needs access to show them a map.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>We need this so that you can share photos and videos from your photo library.</string>
     <key>NSPhotoLibraryUsageDescription</key>
@@ -1946,13 +1878,9 @@ ios_application(
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
     ],
-    app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
-    alternate_icons = [
-        ":{}".format(name) for name in alternate_icon_folders
-    ],
+    app_icons = [":DefaultAppIcon"],
     resources = [
         ":LaunchScreen",
-        #":DefaultAppIcon",
     ],
     frameworks = [
         ":MtProtoKitFramework",

@@ -9,7 +9,6 @@ enum ApplicationShortcutItemType: String {
     case camera
     case savedMessages
     case account
-    case appIcon
 }
 
 struct ApplicationShortcutItem: Equatable {
@@ -33,8 +32,6 @@ extension ApplicationShortcutItem {
                 icon = UIApplicationShortcutIcon(templateImageName: "Shortcuts/SavedMessages")
             case .account:
                 icon = UIApplicationShortcutIcon(templateImageName: "Shortcuts/Account")
-            case .appIcon:
-                icon = UIApplicationShortcutIcon(templateImageName: "Shortcuts/AppIcon")
         }
         return UIApplicationShortcutItem(type: self.type.rawValue, localizedTitle: self.title, localizedSubtitle: self.subtitle, icon: icon, userInfo: nil)
     }
@@ -52,8 +49,7 @@ func applicationShortcutItems(strings: PresentationStrings, otherAccountName: St
         return [
             ApplicationShortcutItem(type: .search, title: strings.Common_Search, subtitle: nil),
             ApplicationShortcutItem(type: .compose, title: strings.Compose_NewMessage, subtitle: nil),
-            ApplicationShortcutItem(type: .savedMessages, title: strings.Conversation_SavedMessages, subtitle: nil),
-            ApplicationShortcutItem(type: .appIcon, title: strings.Shortcut_AppIcon, subtitle: nil)
+            ApplicationShortcutItem(type: .savedMessages, title: strings.Conversation_SavedMessages, subtitle: nil)
         ]
     }
 }

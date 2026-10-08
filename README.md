@@ -1,6 +1,8 @@
-# Swiftgram
+# Airygram
 
-Supercharged Telegram fork for iOS
+Telegram fork for iOS, based on Swiftgram.
+
+Upstream Swiftgram links:
 
 [<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="50">](https://apps.apple.com/app/apple-store/id6471879502?pt=126511626&ct=gh&mt=8)
 
@@ -9,7 +11,7 @@ Supercharged Telegram fork for iOS
 - Telegram chat: https://t.me/swiftgramchat
 - TestFlight beta, local chats, translations and other [@SwiftgramLinks](https://t.me/s/SwiftgramLinks)
 
-Swiftgram's compilation steps are the same as for the official app. Below you'll find a complete compilation guide based on the official app.
+Airygram's compilation steps follow the upstream app. The internal Bazel targets and module names remain unchanged.
 
 # Telegram iOS Source Code Compilation Guide
 
@@ -38,13 +40,16 @@ Install Xcode (directly from https://developer.apple.com/download/applications o
 
 ## Adjust Configuration
 
-1. Generate a random identifier:
-```
-openssl rand -hex 8
-```
-2. Create a new Xcode project. Use `Swiftgram` as the Product Name. Use `org.{identifier from step 1}` as the Organization Identifier.
+1. Use `dev.kuaicode.airygram` as the app's Bundle Identifier and register `group.dev.kuaicode.airygram` as its App Group in your Apple Developer account.
+2. Create a new Xcode project. Use `Airygram` as the Product Name and `dev.kuaicode` as the Organization Identifier, then set the Bundle Identifier to `dev.kuaicode.airygram` exactly.
 3. Open `Keychain Access` and navigate to `Certificates`. Locate `Apple Development: your@email.address (XXXXXXXXXX)` and double tap the certificate. Under `Details`, locate `Organizational Unit`. This is the Team ID.
-4. Edit `build-system/template_minimal_development_configuration.json`. Use data from the previous steps.
+4. Edit `build-system/template_minimal_development_configuration.json`. Keep `bundle_id` as `dev.kuaicode.airygram` and supply your own Telegram `api_id` / `api_hash` and Apple `team_id`.
+
+The extensions derive their identifiers from this Bundle Identifier. Provision the matching extension IDs and App Group; an embedded Watch app uses `dev.kuaicode.airygram.watchkitapp`. If enabled, iCloud uses `iCloud.dev.kuaicode.airygram`. Existing example certificates, provisioning profiles, API credentials, and upstream service configuration are not Airygram credentials and must be configured for your own build. A different Bundle Identifier installs as a separate app and does not automatically inherit another installation's local data or login state.
+
+Airygram has one app icon with ordinary and dark appearances. iOS selects the appearance using the Home Screen icon setting, independently of the in-app chat theme. Earlier iOS versions use the ordinary icon. The app no longer offers alternate icons; Watch uses the ordinary artwork.
+
+Run `python3 Tests/Branding/check_airygram_branding.py` to check branding, icon files, and build references without Xcode. This does not replace a macOS build or testing the icon appearances on a device.
 
 ## Generate an Xcode project
 

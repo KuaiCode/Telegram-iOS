@@ -1,6 +1,6 @@
 import Foundation
 
-public let FALLBACK_BASE_BUNDLE_ID: String = "app.swiftgram.ios"
+public let FALLBACK_BASE_BUNDLE_ID: String = "dev.kuaicode.airygram"
 
 public func sgBaseBundleIdentifier() -> String {
     let baseBundleId: String

@@ -949,7 +949,7 @@ struct PremiumIntroConfiguration {
     let businessPerks: [PremiumPerk]
     
     fileprivate init(perks: [PremiumPerk], businessPerks: [PremiumPerk]) {
-        self.perks = perks
+        self.perks = perks.filter { $0 != .appIcons }
         self.businessPerks = businessPerks
     }
     

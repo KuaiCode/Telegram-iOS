@@ -4,14 +4,14 @@
 # iOS Bazel build (apple_prebuilt_watchos_application) compiles with
 # `xcodebuild -configuration Release`. Differs from project.yml deliberately:
 #   - watchOS app target only (no watchapp2-container, no test/snapshot targets)
-#   - bundle id ph.telegra.Telegraph.watchkitapp, a companion of ph.telegra.Telegraph
+#   - bundle id dev.kuaicode.airygram.watchkitapp, a companion of Airygram
 #   - signing disabled here; the Bazel rule codesigns the output
 #   - no SnapshotPreviews (preview/test tooling must not ship)
 # Keep `packages`, `deploymentTarget`, sources and the Info.plist path in sync
 # with project.yml. Do NOT add the container target or SnapshotPreviews here.
 name: tgwatch
 options:
-  bundleIdPrefix: app.swiftgram   # ph.telegra.Telegraph.watchkitapp, child of the main Telegram app id
+  bundleIdPrefix: dev.kuaicode
   developmentLanguage: en
   deploymentTarget:
     watchOS: "26.0"
@@ -51,12 +51,13 @@ targets:
     info:
       path: tgwatch Watch App/Info.plist
       properties:
-        CFBundleDisplayName: Swiftgram
-        CFBundleIconName: Swiftgram
+        CFBundleDisplayName: Airygram
+        CFBundleName: Airygram
+        CFBundleIconName: AppIcon
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         WKApplication: true
-        WKCompanionAppBundleIdentifier: app.swiftgram.ios
+        WKCompanionAppBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER:base)
         # Intentional: keeps the watch app independently installable on the watch
         # while still shipping inside the Telegram IPA. Do not change to false.
         WKRunsIndependentlyOfCompanionApp: true
@@ -68,7 +69,7 @@ targets:
         NSLocationWhenInUseUsageDescription: Share your current location in chats.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.swiftgram.ios.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: dev.kuaicode.airygram.watchkitapp
         DEVELOPMENT_TEAM: XQN86NH3QN
         TARGETED_DEVICE_FAMILY: "4"
         GENERATE_INFOPLIST_FILE: "NO"

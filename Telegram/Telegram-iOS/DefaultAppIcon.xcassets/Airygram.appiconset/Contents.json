@@ -1,0 +1,26 @@
+{
+  "info": {
+    "version": 1,
+    "author": "xcode"
+  },
+  "images": [
+    {
+      "idiom": "universal",
+      "platform": "ios",
+      "filename": "Airygram.png",
+      "size": "1024x1024"
+    },
+    {
+      "idiom": "universal",
+      "platform": "ios",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ],
+      "filename": "Airygram-dark.png",
+      "size": "1024x1024"
+    }
+  ]
+}

@@ -38,7 +38,27 @@ public class SGLocalizationManager {
     public func localizedString(_ key: String, _ locale: String = SGFallbackLocale, args: CVarArg...) -> String {
         let sanitizedLocale = self.sanitizeLocale(locale)
         
-        if let localizedString = findLocalizedString(forKey: key, inLocale: sanitizedLocale) {
+        if var localizedString = findLocalizedString(forKey: key, inLocale: sanitizedLocale) {
+            // Apply app branding to bundled and downloaded strings, preserving upstream service text.
+            switch key {
+            case "Common.UseTelegramForPremium",
+                 "PayWall.About.Title",
+                 "PayWall.AppIcons.Notice",
+                 "PayWall.MessageFilter.Description",
+                 "PayWall.SessionBackup.Description",
+                 "SessionBackup.DeleteAll.Text",
+                 "SessionBackup.DeleteSingle.Text",
+                 "SessionBackup.RemoveFromApp.Text",
+                 "Settings.CallConfirmation.Notice",
+                 "Settings.ContextMenu.Notice",
+                 "Settings.Folders.BottomTabStyle.telegram",
+                 "Settings.Folders.RememberLast.Notice",
+                 "Settings.Transcription.Backend.Notice",
+                 "Settings.Translation.Backend.Notice":
+                localizedString = localizedString.replacingOccurrences(of: "Swiftgram", with: "Airygram")
+            default:
+                break
+            }
             if args.isEmpty {
                 return String(format: localizedString)
             } else {

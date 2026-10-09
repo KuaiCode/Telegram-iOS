@@ -1,4 +1,5 @@
 import Foundation
+import SGSimpleSettings
 import UIKit
 import Display
 import AccountContext
@@ -221,7 +222,7 @@ func settingsItems(showProfileId: Bool, data: PeerInfoScreenData?, context: Acco
     
     
     let sgWebSettings = context.currentAppConfiguration.with({ $0 }).sgWebSettings
-    if sgWebSettings.global.paymentsEnabled || context.sharedContext.immediateSGStatus.status > 1 {
+    if SGFeaturePolicy.isFreeEdition || sgWebSettings.global.paymentsEnabled || context.sharedContext.immediateSGStatus.status > 1 {
         items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 0, label: swiftgramProLabel, text: "Airygram Pro", icon: PresentationResourcesSettings.swiftgramPro, action: {
             interaction.openSettings(.swiftgramPro)
         }))

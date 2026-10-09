@@ -2426,7 +2426,7 @@ extension AttachmentTextInputPanelNode {
     func initToolbarIfNeeded(context: AccountContext) {
         guard #available(iOS 13.0, *) else { return }
         guard SGSimpleSettings.shared.inputToolbar else { return }
-        guard context.sharedContext.immediateSGStatus.status > 1 else { return }
+        guard SGFeaturePolicy.isFreeEdition || context.sharedContext.immediateSGStatus.status > 1 else { return }
         guard self.toolbarNode == nil else { return }
         let toolbarView = ChatToolbarView(
             onQuote: { [weak self] in

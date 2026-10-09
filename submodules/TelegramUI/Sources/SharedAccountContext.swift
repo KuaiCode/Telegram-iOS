@@ -4673,7 +4673,7 @@ private func useFlatModalCallsPresentation(context: AccountContext) -> Bool {
 // MARK: Swiftgram
 extension SharedAccountContextImpl {
     func initSGIAP(isMainApp: Bool) {
-        if isMainApp {
+        if isMainApp && !SGFeaturePolicy.isFreeEdition {
             self.SGIAP = SGIAPManager()
         } else {
             self.SGIAP = nil
@@ -4686,6 +4686,9 @@ extension SharedAccountContextImpl {
     }
 
     public func makeSGPayWallController(context: AccountContext) -> ViewController? {
+        if SGFeaturePolicy.isFreeEdition {
+            return self.makeSGProController(context: context)
+        }
         guard #available(iOS 13.0, *) else {
             return nil
         }

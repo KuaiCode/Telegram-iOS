@@ -70,11 +70,13 @@ private func SGDebugControllerEntries(presentationData: PresentationData) -> [SG
     entries.append(.action(id: id.count, section: .base, actionType: .clearOutgoingTranslationLanguageCache, text: "Clear Outgoing Translation cache", kind: .generic))
     entries.append(.toggle(id: id.count, section: .base, settingName: .forceImmediateShareSheet, value: SGSimpleSettings.shared.forceSystemSharing, text: "Force System Share Sheet", enabled: true))
     
-    entries.append(.action(id: id.count, section: .base, actionType: .restorePurchases, text: "PayWall.RestorePurchases".i18n(presentationData.strings.baseLanguageCode), kind: .generic))
-    #if DEBUG
-    entries.append(.action(id: id.count, section: .base, actionType: .setIAP, text: "Set Pro", kind: .generic))
-    #endif
-    entries.append(.action(id: id.count, section: .base, actionType: .resetIAP, text: "Reset Pro", kind: .destructive))
+    if !SGFeaturePolicy.isFreeEdition {
+        entries.append(.action(id: id.count, section: .base, actionType: .restorePurchases, text: "PayWall.RestorePurchases".i18n(presentationData.strings.baseLanguageCode), kind: .generic))
+        #if DEBUG
+        entries.append(.action(id: id.count, section: .base, actionType: .setIAP, text: "Set Pro", kind: .generic))
+        #endif
+        entries.append(.action(id: id.count, section: .base, actionType: .resetIAP, text: "Reset Pro", kind: .destructive))
+    }
 
     entries.append(.toggle(id: id.count, section: .notifications, settingName: .legacyNotificationsFix, value: SGSimpleSettings.shared.legacyNotificationsFix, text: "[OLD] Fix empty notifications", enabled: true))
     return entries
@@ -166,6 +168,7 @@ public func sgDebugController(context: AccountContext) -> ViewController {
             }
             #endif
         case .restorePurchases:
+            guard !SGFeaturePolicy.isFreeEdition else { return }
             presentControllerImpl?(UndoOverlayController(
                 presentationData: presentationData,
                 content: .info(title: nil, text: "PayWall.Button.Restoring".i18n(args: context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode), timeout: nil, customUndoText: nil),
@@ -178,6 +181,7 @@ public func sgDebugController(context: AccountContext) -> ViewController {
             #if DEBUG
             #endif
         case .resetIAP:
+            guard !SGFeaturePolicy.isFreeEdition else { return }
             let updateSettingsSignal = updateSGStatusInteractively(accountManager: context.sharedContext.accountManager, { status in
                 var status = status
                 status.status = SGStatus.default.status

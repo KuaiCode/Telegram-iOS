@@ -1359,7 +1359,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                     let _ = (context.context.sharedContext.presentationData.start(next: { presentationData in
                         SGLocalizationManager.shared.downloadLocale(presentationData.strings.baseLanguageCode)
                     }))
-                    if #available(iOS 13.0, *) {
+                    if #available(iOS 13.0, *), !SGFeaturePolicy.isFreeEdition {
                         let _ = Task {
                             let primaryContext = await self.getPrimaryContext(anyContext: context.context)
                             SGLogger.shared.log("SGIAP", "Verifying Status \(primaryContext.sharedContext.immediateSGStatus.status) for: \(primaryContext.account.peerId.id._internalGetInt64Value())")
@@ -3353,6 +3353,7 @@ final class UpdateSettings: Codable, Equatable {
 extension AppDelegate {
 
     func setupIAP() {
+        guard !SGFeaturePolicy.isFreeEdition else { return }
         NotificationCenter.default.addObserver(forName: .SGIAPHelperPurchaseNotification, object: nil, queue: nil) { [weak self] notification in
             SGLogger.shared.log("SGIAP", "Got SGIAPHelperPurchaseNotification")
             guard let strongSelf = self else { return }
@@ -3418,6 +3419,7 @@ extension AppDelegate {
     }
     
     func sendReceiptForVerification(primaryContext: AccountContext) async {
+        guard !SGFeaturePolicy.isFreeEdition else { return }
         guard let receiptData = getPurchaceReceiptData() else {
             return
         }
@@ -3450,6 +3452,7 @@ extension AppDelegate {
     }
     
     func fetchSGStatus(primaryContext: AccountContext) async {
+        guard !SGFeaturePolicy.isFreeEdition else { return }
         // TODO(swiftgram): Stuck on getting shouldKeepConnection
         // Perhaps, we can drop on some timeout?
 //        let currentShouldKeepConnection = await (primaryContext.account.network.shouldKeepConnection.get() |> take(1) |> deliverOnMainQueue).awaitable()

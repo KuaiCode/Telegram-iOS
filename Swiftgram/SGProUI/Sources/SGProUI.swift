@@ -64,7 +64,9 @@ private func SGProControllerEntries(presentationData: PresentationData) -> [SGPr
     entries.append(.notice(id: id.count, section: .appearance, text: "AppBadge.Notice".i18n(lang)))
 
     #if DEBUG
-    entries.append(.action(id: id.count, section: .footer, actionType: .resetIAP, text: "Reset Pro", kind: .destructive))
+    if !SGFeaturePolicy.isFreeEdition {
+        entries.append(.action(id: id.count, section: .footer, actionType: .resetIAP, text: "Reset Pro", kind: .destructive))
+    }
     #endif
     
     return entries
@@ -144,6 +146,7 @@ public func sgProController(context: AccountContext) -> ViewController {
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         switch action {
             case .resetIAP:
+                guard !SGFeaturePolicy.isFreeEdition else { return }
                 let updateSettingsSignal = updateSGStatusInteractively(accountManager: context.sharedContext.accountManager, { status in
                     var status = status
                     status.status = SGStatus.default.status

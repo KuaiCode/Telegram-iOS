@@ -1,5 +1,6 @@
 import SGDebugUI
 import SGSettingsUI
+import SGSimpleSettings
 import UndoUI
 //
 import ContactListUI
@@ -893,7 +894,7 @@ func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, ur
                                 }
                                 return
                             case "pro", "premium", "buy":
-                                if context.sharedContext.immediateSGStatus.status > 1 {
+                                if SGFeaturePolicy.isFreeEdition || context.sharedContext.immediateSGStatus.status > 1 {
                                     navigationController?.pushViewController(context.sharedContext.makeSGProController(context: context))
                                 } else {
                                     if let lastViewController = navigationController?.viewControllers.last as? ViewController {
@@ -921,6 +922,10 @@ func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, ur
                                     nil
                                 )
                             case "restore_purchases", "pro_restore", "validate", "restore":
+                                if SGFeaturePolicy.isFreeEdition {
+                                    navigationController?.pushViewController(context.sharedContext.makeSGProController(context: context))
+                                    return
+                                }
                                 let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                                 let lang = presentationData.strings.baseLanguageCode
                                 context.sharedContext.presentGlobalController(UndoOverlayController(

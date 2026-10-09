@@ -46,6 +46,10 @@ jobs:
       - name: Build unsigned device IPA
         run: |
           mkdir -p build/artifacts
+          # The pinned rules_apple otherwise requires profiles even when signing is disabled.
+          git -C build-system/bazel-rules/rules_apple apply --check "$GITHUB_WORKSPACE/build-system/patches/rules-apple-unsigned-profiles.patch"
+          git -C build-system/bazel-rules/rules_apple apply "$GITHUB_WORKSPACE/build-system/patches/rules-apple-unsigned-profiles.patch"
+          python3 scripts/check_ci_unsigned_rules.py
           # These settings apply only to this disposable CI checkout.
           cat >> .bazelrc <<'EOF'
 

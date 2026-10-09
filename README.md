@@ -24,6 +24,8 @@ Airygram's compilation steps follow the upstream app. The internal Bazel targets
 
 工作流使用 macOS 26 ARM runner，严格按 `versions.json` 选择 Xcode（当前为 26.2）和 Bazel，并递归拉取 Git 子模块。GitHub 镜像若移除所需 Xcode，会明确失败，不会自动换版本。首次完整构建可能耗时较长；私有仓库注意账户的 Actions 用量和预算。
 
+CI 会应用 `build-system/patches/rules-apple-unsigned-profiles.patch`，让锁定版本的 `rules_apple` 在禁用签名时不再要求嵌入描述文件，覆盖主 App 和 iOS 扩展。补丁仅应用到 runner 的临时子模块副本，并检查签名/未签名及设备/模拟器组合；升级子模块后若补丁不适用，工作流会报错。
+
 Bundle ID 保持 `dev.kuaicode.airygram`。`AAAAAAAAAA` 仅用于未签名构建的 Team ID 占位，**不是有效 Apple Team ID**。IPA 不能直接安装或提交 App Store，需要自行签名；签名时应使用自己的 Team ID、描述文件，并处理主 App 和扩展的 App Group、钥匙串等 entitlement。推送等功能仍依赖有效签名及相应服务配置。
 
 API 凭据只写入 CI 的 `build-input/`（已被 Git 忽略），但会编译进应用；不要把 IPA 当作隐藏这些凭据的方式。工作流仅上传 IPA、调试符号和构建日志，不上传生成的配置文件。

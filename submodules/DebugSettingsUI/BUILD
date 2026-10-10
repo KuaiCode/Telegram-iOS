@@ -17,6 +17,7 @@ swift_library(
         "-warnings-as-errors",
     ],
     deps = sgdeps + [
+        "//Swiftgram/SGAppGroupIdentifier:SGAppGroupIdentifier",
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/Display:Display",
         "//submodules/TelegramCore:TelegramCore",

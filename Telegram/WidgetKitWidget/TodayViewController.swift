@@ -1,3 +1,4 @@
+import SGAppGroupIdentifier
 #if arch(arm64) || arch(x86_64)
 
 import UIKit
@@ -74,15 +75,7 @@ private func getCommonTimeline(friends: [Friend]?, in context: TimelineProviderC
     let currentDate = Date()
     let entryDate = Calendar.current.date(byAdding: .hour, value: 0, to: currentDate)!
     
-    guard let appBundleIdentifier = Bundle.main.bundleIdentifier, let lastDotRange = appBundleIdentifier.range(of: ".", options: [.backwards]) else {
-        completion(Timeline(entries: [SimpleEntry(date: entryDate, contents: .recent)], policy: .atEnd))
-        return
-    }
-    
-    let baseAppBundleId = String(appBundleIdentifier[..<lastDotRange.lowerBound])
-    
-    let appGroupName = "group.\(baseAppBundleId)"
-    let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+    let maybeAppGroupUrl = sgAppGroupContainerURL()
     
     guard let appGroupUrl = maybeAppGroupUrl else {
         completion(Timeline(entries: [SimpleEntry(date: entryDate, contents: .recent)], policy: .atEnd))

@@ -23,12 +23,12 @@ import CoreServices
 import ImageIO
 import UniformTypeIdentifiers
 
-private let groupUserDefaults: UserDefaults? = UserDefaults(suiteName: sgAppGroupIdentifier())
-private let LEGACY_NOTIFICATIONS_FIX: Bool = groupUserDefaults?.bool(forKey: "legacyNotificationsFix") ?? false
-private let PINNED_MESSAGE_ACTION: String = groupUserDefaults?.string(forKey: "pinnedMessageNotifications") ?? "default"
-private let PINNED_MESSAGE_ACTION_EXCEPTIONS: [String: String] = (groupUserDefaults?.dictionary(forKey: "pinnedMessageNotificationsExceptions") as? [String: String]) ?? [:]
-private let MENTION_AND_REPLY_ACTION: String = groupUserDefaults?.string(forKey: "mentionsAndRepliesNotifications") ?? "default"
-private let MENTION_AND_REPLY_ACTION_EXCEPTIONS: [String: String] = (groupUserDefaults?.dictionary(forKey: "mentionsAndRepliesNotificationsExceptions") as? [String: String]) ?? [:]
+private let groupUserDefaults: UserDefaults? = sgSharedUserDefaults()
+private let LEGACY_NOTIFICATIONS_FIX: Bool = groupUserDefaults?.bool(forKey: sgSharedDefaultsKey("legacyNotificationsFix")) ?? false
+private let PINNED_MESSAGE_ACTION: String = groupUserDefaults?.string(forKey: sgSharedDefaultsKey("pinnedMessageNotifications")) ?? "default"
+private let PINNED_MESSAGE_ACTION_EXCEPTIONS: [String: String] = (groupUserDefaults?.dictionary(forKey: sgSharedDefaultsKey("pinnedMessageNotificationsExceptions")) as? [String: String]) ?? [:]
+private let MENTION_AND_REPLY_ACTION: String = groupUserDefaults?.string(forKey: sgSharedDefaultsKey("mentionsAndRepliesNotifications")) ?? "default"
+private let MENTION_AND_REPLY_ACTION_EXCEPTIONS: [String: String] = (groupUserDefaults?.dictionary(forKey: sgSharedDefaultsKey("mentionsAndRepliesNotificationsExceptions")) as? [String: String]) ?? [:]
 
 private let queue = Queue()
 
@@ -799,8 +799,7 @@ private final class NotificationServiceHandler {
         let apiHash: String = buildConfig.apiHash
         let languagesCategory = "ios"
 
-        let appGroupName = "group.\(baseAppBundleId)"
-        let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+        let maybeAppGroupUrl = sgAppGroupContainerURL()
 
         guard let appGroupUrl = maybeAppGroupUrl else {
             return nil

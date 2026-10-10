@@ -1,3 +1,4 @@
+import SGAppGroupIdentifier
 // MARK: Swiftgram
 import StoreKit
 import SGIAP
@@ -299,11 +300,8 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             return existingSession
         }
         
-        let baseAppBundleId = Bundle.main.bundleIdentifier!
-        let appGroupName = "group.\(baseAppBundleId)"
-
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-        configuration.sharedContainerIdentifier = appGroupName
+        configuration.sharedContainerIdentifier = sgResolvedAppGroupIdentifier()
         configuration.isDiscretionary = false
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
         self.urlSessions.append(session)
@@ -546,8 +544,8 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown"
         
         let baseAppBundleId = Bundle.main.bundleIdentifier!
-        let appGroupName = "group.\(baseAppBundleId)"
-        let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+
+        let maybeAppGroupUrl = sgAppGroupContainerURL()
         
         let buildConfig = BuildConfig(baseAppBundleId: baseAppBundleId)
         self.buildConfig = buildConfig
@@ -660,7 +658,10 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         )
         
         guard let appGroupUrl = maybeAppGroupUrl else {
-            self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
+            self.window?.makeKeyAndVisible()
+            let alert = UIAlertController(title: "Unable to open app data", message: "The signed app could not access its data container. Please check its App Group permissions and available storage.", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            self.mainWindow?.presentNative(alert)
             return true
         }
         

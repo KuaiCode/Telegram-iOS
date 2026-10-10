@@ -1,3 +1,4 @@
+import SGAppGroupIdentifier
 import UIKit
 import TelegramUI
 import BuildConfig
@@ -33,9 +34,8 @@ class ShareRootController: UIViewController {
             let buildConfig = BuildConfig(baseAppBundleId: baseAppBundleId)
             
             let languagesCategory = "ios"
-            
-            let appGroupName = "group.\(baseAppBundleId)"
-            let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+
+            let maybeAppGroupUrl = sgAppGroupContainerURL()
             
             guard let appGroupUrl = maybeAppGroupUrl else {
                 return

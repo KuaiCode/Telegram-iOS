@@ -43,6 +43,11 @@ jobs:
           test "$(uname -m)" = arm64
           df -h .
 
+      - name: Check re-signing container selection
+        run: |
+          swiftc Swiftgram/SGAppGroupIdentifier/Sources/AppGroupLocation.swift Tests/Resigning/main.swift -o "$RUNNER_TEMP/check-app-group"
+          "$RUNNER_TEMP/check-app-group"
+
       - name: Build unsigned device IPA
         run: |
           mkdir -p build/artifacts

@@ -9,6 +9,9 @@ swift_library(
     copts = [
         "-warnings-as-errors",
     ],
+    deps = [
+        "//Swiftgram/SGAppGroupIdentifier:SGAppGroupIdentifier",
+    ],
     visibility = [
         "//visibility:public",
     ],
@@ -22,6 +25,9 @@ swift_library(
     ]),
     copts = [
         "-warnings-as-errors",
+    ],
+    deps = [
+        "//Swiftgram/SGAppGroupIdentifier:SGAppGroupIdentifier",
     ],
     visibility = [
         "//visibility:public",

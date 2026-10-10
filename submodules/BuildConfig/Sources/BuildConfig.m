@@ -1,4 +1,5 @@
 #import <BuildConfig/BuildConfig.h>
+#include <dlfcn.h>
 
 static NSString *telegramApplicationSecretKey = @"telegramApplicationSecretKey_v3";
 API_AVAILABLE(ios(10))
@@ -93,6 +94,40 @@ API_AVAILABLE(ios(10))
 @end
 
 @implementation BuildConfig
+
++ (NSArray<NSString *> *)applicationGroupIdentifiers {
+    // Read the installed signature, not the unsigned build's placeholder entitlements.
+    CFTypeRef (*createTask)(CFAllocatorRef) = dlsym(RTLD_DEFAULT, "SecTaskCreateFromSelf");
+    CFTypeRef (*copyEntitlement)(CFTypeRef, CFStringRef, CFErrorRef *) = dlsym(RTLD_DEFAULT, "SecTaskCopyValueForEntitlement");
+    if (createTask == NULL || copyEntitlement == NULL) {
+        return nil;
+    }
+    CFTypeRef task = createTask(kCFAllocatorDefault);
+    if (task == NULL) {
+        return nil;
+    }
+    CFErrorRef error = NULL;
+    CFTypeRef value = copyEntitlement(task, CFSTR("com.apple.security.application-groups"), &error);
+    CFRelease(task);
+    if (error != NULL) {
+        CFRelease(error);
+        if (value != NULL) CFRelease(value);
+        return nil;
+    }
+    if (value == NULL) {
+        return @[];
+    }
+    id result = CFBridgingRelease(value);
+    if (![result isKindOfClass:[NSArray class]]) {
+        return nil;
+    }
+    for (id identifier in result) {
+        if (![identifier isKindOfClass:[NSString class]] || ![identifier hasPrefix:@"group."]) {
+            return nil;
+        }
+    }
+    return result;
+}
 
 + (NSString *)bundleId {
     NSDictionary *query = [NSDictionary dictionaryWithObjectsAndKeys:

@@ -17,15 +17,14 @@ public class SGSimpleSettings {
     private func setDefaultValues() {
         UserDefaults.standard.register(defaults: SGSimpleSettings.defaultValues)
         // Just in case group defaults will be nil
-        UserDefaults.standard.register(defaults: SGSimpleSettings.groupDefaultValues)
-        if let groupUserDefaults = UserDefaults(suiteName: APP_GROUP_IDENTIFIER) {
-            groupUserDefaults.register(defaults: SGSimpleSettings.groupDefaultValues)
-        }
+        let groupDefaults = Dictionary(uniqueKeysWithValues: SGSimpleSettings.groupDefaultValues.map { (sgSharedDefaultsKey($0.key), $0.value) })
+        UserDefaults.standard.register(defaults: groupDefaults)
+        sgSharedUserDefaults()?.register(defaults: groupDefaults)
     }
     
     private func migrate() {
-        let showRepostToStoryMigrationKey = "migrated_\(Keys.showRepostToStory.rawValue)"
-        if let groupUserDefaults = UserDefaults(suiteName: APP_GROUP_IDENTIFIER) {
+        let showRepostToStoryMigrationKey = sgSharedDefaultsKey("migrated_\(Keys.showRepostToStory.rawValue)")
+        if let groupUserDefaults = sgSharedUserDefaults() {
             if !groupUserDefaults.bool(forKey: showRepostToStoryMigrationKey) {
                 self.showRepostToStoryV2 = self.showRepostToStory
                 groupUserDefaults.set(true, forKey: showRepostToStoryMigrationKey)
@@ -87,7 +86,7 @@ public class SGSimpleSettings {
     }
     
     public func synchronizeShared() {
-        if let groupUserDefaults = UserDefaults(suiteName: APP_GROUP_IDENTIFIER) {
+        if let groupUserDefaults = sgSharedUserDefaults() {
             groupUserDefaults.synchronize()
         }
     }
@@ -407,7 +406,7 @@ public class SGSimpleSettings {
     @UserDefault(key: Keys.showRepostToStory.rawValue)
     public var showRepostToStory: Bool
 
-    @UserDefault(key: Keys.showRepostToStoryV2.rawValue, userDefaults: UserDefaults(suiteName: APP_GROUP_IDENTIFIER) ?? .standard)
+    @UserDefault(key: sgSharedDefaultsKey(Keys.showRepostToStoryV2.rawValue), userDefaults: sgSharedUserDefaults() ?? .standard)
     public var showRepostToStoryV2: Bool
 
     @UserDefault(key: Keys.contextShowRestrict.rawValue)
@@ -540,10 +539,10 @@ public class SGSimpleSettings {
     @UserDefault(key: Keys.videoPIPSwipeDirection.rawValue)
     public var videoPIPSwipeDirection: String
 
-    @UserDefault(key: Keys.legacyNotificationsFix.rawValue, userDefaults: UserDefaults(suiteName: APP_GROUP_IDENTIFIER) ?? .standard)
+    @UserDefault(key: sgSharedDefaultsKey(Keys.legacyNotificationsFix.rawValue), userDefaults: sgSharedUserDefaults() ?? .standard)
     public var legacyNotificationsFix: Bool
     
-    @UserDefault(key: Keys.status.rawValue, userDefaults: UserDefaults(suiteName: APP_GROUP_IDENTIFIER) ?? .standard)
+    @UserDefault(key: sgSharedDefaultsKey(Keys.status.rawValue), userDefaults: sgSharedUserDefaults() ?? .standard)
     public var status: Int64
 
     public var ephemeralStatus: Int64 = 1
@@ -557,10 +556,10 @@ public class SGSimpleSettings {
     @UserDefault(key: Keys.sendWithReturnKey.rawValue)
     public var sendWithReturnKey: Bool
     
-    @UserDefault(key: Keys.pinnedMessageNotifications.rawValue, userDefaults: UserDefaults(suiteName: APP_GROUP_IDENTIFIER) ?? .standard)
+    @UserDefault(key: sgSharedDefaultsKey(Keys.pinnedMessageNotifications.rawValue), userDefaults: sgSharedUserDefaults() ?? .standard)
     public var pinnedMessageNotifications: String
     
-    @UserDefault(key: Keys.mentionsAndRepliesNotifications.rawValue, userDefaults: UserDefaults(suiteName: APP_GROUP_IDENTIFIER) ?? .standard)
+    @UserDefault(key: sgSharedDefaultsKey(Keys.mentionsAndRepliesNotifications.rawValue), userDefaults: sgSharedUserDefaults() ?? .standard)
     public var mentionsAndRepliesNotifications: String
     
     @UserDefault(key: Keys.primaryUserId.rawValue)

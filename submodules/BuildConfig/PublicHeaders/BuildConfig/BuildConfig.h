@@ -9,6 +9,8 @@
 
 @interface BuildConfig : NSObject
 
++ (NSArray<NSString *> * _Nullable)applicationGroupIdentifiers;
+
 - (instancetype _Nonnull)initWithBaseAppBundleId:(NSString * _Nonnull)baseAppBundleId;
 
 @property (nonatomic, strong, readonly) NSString * _Nullable appCenterId;

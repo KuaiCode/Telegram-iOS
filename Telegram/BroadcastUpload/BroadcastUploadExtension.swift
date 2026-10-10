@@ -1,3 +1,4 @@
+import SGAppGroupIdentifier
 import Foundation
 import ReplayKit
 import CoreVideo
@@ -322,8 +323,7 @@ private final class EmbeddedBroadcastUploadImpl: BroadcastUploadImpl {
 
         let baseAppBundleId = String(appBundleIdentifier[..<lastDotRange.lowerBound])
 
-        let appGroupName = "group.\(baseAppBundleId)"
-        let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+        let maybeAppGroupUrl = sgAppGroupContainerURL()
 
         guard let appGroupUrl = maybeAppGroupUrl else {
             self.finishWithError()

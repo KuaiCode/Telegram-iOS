@@ -1,3 +1,4 @@
+import SGAppGroupIdentifier
 // MARK: Swiftgram
 import SGLogging
 import SGLoggingComposer
@@ -1709,8 +1710,7 @@ public func debugController(sharedContext: SharedAccountContext, context: Accoun
         return getNavigationControllerImpl?()
     })
     
-    let appGroupName = "group.\(Bundle.main.bundleIdentifier!)"
-    let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+    let maybeAppGroupUrl = sgAppGroupContainerURL()
     
     var hasLegacyAppData = false
     if let appGroupUrl = maybeAppGroupUrl {

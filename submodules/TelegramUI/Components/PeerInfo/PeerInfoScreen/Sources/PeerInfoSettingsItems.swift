@@ -1,4 +1,5 @@
 import Foundation
+import SGStrings
 import UIKit
 import Display
 import AccountContext
@@ -212,6 +213,9 @@ func settingsItems(showProfileId: Bool, data: PeerInfoScreenData?, context: Acco
     let sgWebSettings = context.currentAppConfiguration.with({ $0 }).sgWebSettings
     items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 1, label: swiftgramLabel, text: "Airygram", icon: PresentationResourcesSettings.swiftgram, action: {
         interaction.openSettings(.swiftgram)
+    }))
+    items[.swiftgramPro]!.append(PeerInfoScreenDisclosureItem(id: 1, text: "Settings.Advance.Title".i18n(presentationData.strings.baseLanguageCode), icon: PresentationResourcesSettings.swiftgramPro, action: {
+        interaction.openSettings(.swiftgramPro)
     }))
 
     var appIndex = 1000

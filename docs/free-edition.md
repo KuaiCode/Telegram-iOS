@@ -14,6 +14,8 @@
 
 普通购买入口不显示；旧购买入口或相关深链应进入可用设置或安全返回，不显示购买/恢复中的状态。调试页的购买恢复与会员重置入口同样不向免费版展示。启动、切换账号和后台通知路径都不能依赖一次性的 UI 状态来维持免费访问。
 
+设置中的 Advance（高级）页仅包含消息过滤器；会话备份、输入工具栏、通知和 App Badge 设置仍在 Airygram 页。原 Pro 工厂接口及旧购买深链进入高级页，已有过滤关键词的保存方式保持不变。
+
 ## 与上游同步
 
 直接上游是 `Swiftgram/Telegram-iOS`。`origin` 是 `KuaiCode/Telegram-iOS`；不要照搬继承文档中的 `TelegramMessenger/Telegram-iOS` 示例覆盖现有 `upstream`。

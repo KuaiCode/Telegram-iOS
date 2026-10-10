@@ -1,4 +1,5 @@
 "Settings.ContentSettings" = "敏感內容設定";
+"Settings.Advance.Title" = "高級";
 
 "Settings.Tabs.Header" = "頁籤";
 "Settings.Tabs.HideTabBar" = "隱藏導航列";

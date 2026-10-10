@@ -2,6 +2,7 @@
 import SGIAP
 import SGPayWall
 import SGSettingsUI
+import SGProUI
 import SGSimpleSettings
 //
 import Foundation
@@ -4681,8 +4682,7 @@ extension SharedAccountContextImpl {
     }
     
     public func makeSGProController(context: AccountContext) -> ViewController {
-        let controller = sgSettingsController(context: context)
-        return controller
+        return sgProController(context: context)
     }
 
     public func makeSGPayWallController(context: AccountContext) -> ViewController? {

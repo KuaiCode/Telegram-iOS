@@ -175,7 +175,7 @@ def check_app_badge():
     window = read("submodules/Display/Source/WindowContent.swift")
     assert "let image = UIImage(bundleImageName: SGSimpleSettings.shared.customAppBadge)" in window
     assert 'self.badgeView.image = UIImage(bundleImageName: "Components/AppBadge")' in window
-    assert "sgAppBadgeSettingsController(context: context" in read("Swiftgram/SGProUI/Sources/SGProUI.swift")
+    assert "sgAppBadgeSettingsController(context: context" in read("Swiftgram/SGSettingsUI/Sources/SGSettingsController.swift")
     print("Airygram App Badge assets, selector, and saved-choice fallback checks passed.")
 
 

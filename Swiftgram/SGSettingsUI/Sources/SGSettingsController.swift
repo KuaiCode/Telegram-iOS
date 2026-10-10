@@ -133,7 +133,6 @@ private enum SGSliderSetting: String {
 
 private enum SGDisclosureLink: String {
     case sessionBackupManager
-    case messageFilter
     case appBages
     case contentSettings
     case languageSettings
@@ -162,7 +161,6 @@ private func SGControllerEntries(presentationData: PresentationData, callListSet
     entries.append(.searchInput(id: id.count, section: .search, title: NSAttributedString(string: "🔍"), text: state.searchQuery ?? "", placeholder: strings.Common_Search))
     
     entries.append(.disclosure(id: id.count, section: .base, link: .sessionBackupManager, text: "SessionBackup.Title".i18n(lang)))
-    entries.append(.disclosure(id: id.count, section: .base, link: .messageFilter, text: "MessageFilter.Title".i18n(lang)))
     entries.append(.toggle(id: id.count, section: .base, settingName: .inputToolbar, value: SGSimpleSettings.shared.inputToolbar, text: "InputToolbar.Title".i18n(lang), enabled: true))
 
     entries.append(.header(id: id.count, section: .notifications, text: presentationData.strings.Notifications_Title.uppercased(), badge: nil))
@@ -734,8 +732,6 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
         switch (link) {
             case .sessionBackupManager:
                 pushControllerImpl?(sgSessionBackupManagerController(context: context, presentationData: presentationData))
-            case .messageFilter:
-                pushControllerImpl?(sgMessageFilterController(presentationData: presentationData))
             case .appBages:
                 if #available(iOS 14.0, *) {
                     pushControllerImpl?(sgAppBadgeSettingsController(context: context, presentationData: presentationData))

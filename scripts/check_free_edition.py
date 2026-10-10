@@ -134,8 +134,18 @@ def check_sources(sources):
                          r"context\.sharedContext\.makeSGProController\(context: context\)\)\s*return\s*}", restore),
             "Restore links must route to Pro settings and return before the restoring overlay")
 
-    for path, actions in (("Swiftgram/SGDebugUI/Sources/SGDebugUI.swift", ("restorePurchases", "resetIAP")),
-                          ("Swiftgram/SGProUI/Sources/SGProUI.swift", ("resetIAP",))):
+    advanced = read("Swiftgram/SGProUI/Sources/SGProUI.swift")
+    require("resetIAP" not in advanced, "Advance settings must not expose membership reset")
+    require("sgMessageFilterController(presentationData: presentationData)" in advanced,
+            "Advance settings must open the existing message filter")
+    require("messageFilter" not in read("Swiftgram/SGSettingsUI/Sources/SGSettingsController.swift"),
+            "Message filter must not remain in Airygram settings")
+    pro_factory = prefix(SHARED, "public func makeSGProController(context: AccountContext) -> ViewController {",
+                         "public func makeSGPayWallController")
+    require(re.fullmatch(r"return sgProController\(context: context\)\s*}", pro_factory),
+            "Pro settings factory must route to Advance settings")
+
+    for path, actions in (("Swiftgram/SGDebugUI/Sources/SGDebugUI.swift", ("restorePurchases", "resetIAP")),):
         text = read(path)
         hidden = re.findall(rf"if !{re.escape(POLICY)}\s*{{([^{{}}]*)}}", text, re.S)
         for action in actions:

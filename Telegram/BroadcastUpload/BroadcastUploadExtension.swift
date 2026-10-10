@@ -316,12 +316,10 @@ private final class EmbeddedBroadcastUploadImpl: BroadcastUploadImpl {
     }
 
     override public func broadcastStarted(withSetupInfo setupInfo: [String : NSObject]?) {
-        guard let appBundleIdentifier = Bundle.main.bundleIdentifier, let lastDotRange = appBundleIdentifier.range(of: ".", options: [.backwards]) else {
+        guard let appBundleIdentifier = Bundle.main.bundleIdentifier, appBundleIdentifier.range(of: ".", options: [.backwards]) != nil else {
             self.finishWithError()
             return
         }
-
-        let baseAppBundleId = String(appBundleIdentifier[..<lastDotRange.lowerBound])
 
         let maybeAppGroupUrl = sgAppGroupContainerURL()
 

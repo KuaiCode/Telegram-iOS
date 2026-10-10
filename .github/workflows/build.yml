@@ -69,6 +69,7 @@ jobs:
             --configurationPath=build-input/ci-unsigned-configuration.json \
             --xcodeManagedCodesigning \
             --configuration=release_arm64 \
+            --continueOnError \
             --buildNumber="$BUILD_NUMBER" \
             --outputBuildArtifactsPath=build/artifacts \
             2>&1 | tee build/build.log

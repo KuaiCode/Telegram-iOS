@@ -30,7 +30,6 @@ GATES = {
     "Swiftgram/SGProUI/Sources/AppBadgeSelectorController.swift": 1,
     "submodules/Display/Source/WindowContent.swift": 1,
     URLS: 1,
-    UI + "Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift": 1,
     UI + "Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoScreenSettingsActions.swift": 1,
     **dict.fromkeys(TOOLBARS, 1),
 }
@@ -93,7 +92,7 @@ def check_sources(sources):
             build = str(directory / "BUILD").replace("\\", "/")
             require("//Swiftgram/SGSimpleSettings:SGSimpleSettings" in sources.get(build, ""),
                     f"Missing policy module dependency: {path} ({build})")
-    require(counts == GATES, f"Review changed SG gate inventory (expected 11): {counts}")
+    require(counts == GATES, f"Review changed SG gate inventory (expected 10): {counts}")
 
     # Preserve feature choices and notification guards around the free entitlement.
     for path in TOOLBARS:
@@ -252,6 +251,6 @@ if __name__ == "__main__":
     else:
         check_feature_boundaries(sources)
         check_detector(sources)
-        print("Free-edition source checks passed (11 gates; 80 boundary cases; 6 in-memory mutations).")
+        print("Free-edition source checks passed (10 gates; 80 boundary cases; 6 in-memory mutations).")
     print("Static checks only; macOS/iOS compilation and real-device tests remain required.")
     sys.exit(bool(failures))

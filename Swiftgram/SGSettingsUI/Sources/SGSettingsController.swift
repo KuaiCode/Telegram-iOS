@@ -3,6 +3,7 @@ import SGLogging
 import SGSimpleSettings
 import SGStrings
 import SGAPIToken
+import SGProUI
 
 import SGItemListUI
 import Foundation
@@ -27,6 +28,9 @@ import UndoUI
 
 private enum SGControllerSection: Int32, SGItemListSection {
     case search
+    case base
+    case notifications
+    case appearance
     case trending
     case content
     case tabs
@@ -46,6 +50,7 @@ private enum SGControllerSection: Int32, SGItemListSection {
 }
 
 private enum SGBoolSetting: String {
+    case inputToolbar
     case hidePhoneInSettings
     case showTabNames
     case showContactsTab
@@ -109,6 +114,8 @@ private enum SGBoolSetting: String {
 }
 
 private enum SGOneFromManySetting: String {
+    case pinnedMessageNotifications
+    case mentionsAndRepliesNotifications
     case nyStyle
     case bottomTabStyle
     case downloadSpeedBoost
@@ -125,6 +132,9 @@ private enum SGSliderSetting: String {
 }
 
 private enum SGDisclosureLink: String {
+    case sessionBackupManager
+    case messageFilter
+    case appBages
     case contentSettings
     case languageSettings
 }
@@ -151,6 +161,16 @@ private func SGControllerEntries(presentationData: PresentationData, callListSet
     
     entries.append(.searchInput(id: id.count, section: .search, title: NSAttributedString(string: "🔍"), text: state.searchQuery ?? "", placeholder: strings.Common_Search))
     
+    entries.append(.disclosure(id: id.count, section: .base, link: .sessionBackupManager, text: "SessionBackup.Title".i18n(lang)))
+    entries.append(.disclosure(id: id.count, section: .base, link: .messageFilter, text: "MessageFilter.Title".i18n(lang)))
+    entries.append(.toggle(id: id.count, section: .base, settingName: .inputToolbar, value: SGSimpleSettings.shared.inputToolbar, text: "InputToolbar.Title".i18n(lang), enabled: true))
+
+    entries.append(.header(id: id.count, section: .notifications, text: presentationData.strings.Notifications_Title.uppercased(), badge: nil))
+    entries.append(.oneFromManySelector(id: id.count, section: .notifications, settingName: .pinnedMessageNotifications, text: "Notifications.PinnedMessages.Title".i18n(lang), value: "Notifications.PinnedMessages.value.\(SGSimpleSettings.shared.pinnedMessageNotifications)".i18n(lang), enabled: true))
+    entries.append(.oneFromManySelector(id: id.count, section: .notifications, settingName: .mentionsAndRepliesNotifications, text: "Notifications.MentionsAndReplies.Title".i18n(lang), value: "Notifications.MentionsAndReplies.value.\(SGSimpleSettings.shared.mentionsAndRepliesNotifications)".i18n(lang), enabled: true))
+    entries.append(.header(id: id.count, section: .appearance, text: presentationData.strings.Appearance_Title.uppercased(), badge: nil))
+    entries.append(.disclosure(id: id.count, section: .appearance, link: .appBages, text: "AppBadge.Title".i18n(lang)))
+    entries.append(.notice(id: id.count, section: .appearance, text: "AppBadge.Notice".i18n(lang)))
     
     if SGSimpleSettings.shared.canUseNY {
         entries.append(.header(id: id.count, section: .trending, text: i18n("Settings.NY.Header", lang), badge: newStr))
@@ -364,6 +384,8 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
           }
         },*/ setBoolValue: { setting, value in
         switch setting {
+        case .inputToolbar:
+            SGSimpleSettings.shared.inputToolbar = value
         case .hidePhoneInSettings:
             SGSimpleSettings.shared.hidePhoneInSettings = value
             askForRestart?()
@@ -543,10 +565,37 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
 
     }, setOneFromManyValue: { setting in
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        let lang = presentationData.strings.baseLanguageCode
         let actionSheet = ActionSheetController(presentationData: presentationData)
         var items: [ActionSheetItem] = []
         
         switch (setting) {
+            case .pinnedMessageNotifications:
+                let setAction: (String) -> Void = { value in
+                    SGSimpleSettings.shared.pinnedMessageNotifications = value
+                    SGSimpleSettings.shared.synchronizeShared()
+                    simplePromise.set(true)
+                }
+
+                for value in SGSimpleSettings.PinnedMessageNotificationsSettings.allCases {
+                    items.append(ActionSheetButtonItem(title: "Notifications.PinnedMessages.value.\(value.rawValue)".i18n(lang), color: .accent, action: { [weak actionSheet] in
+                        actionSheet?.dismissAnimated()
+                        setAction(value.rawValue)
+                    }))
+                }
+            case .mentionsAndRepliesNotifications:
+                let setAction: (String) -> Void = { value in
+                    SGSimpleSettings.shared.mentionsAndRepliesNotifications = value
+                    SGSimpleSettings.shared.synchronizeShared()
+                    simplePromise.set(true)
+                }
+
+                for value in SGSimpleSettings.MentionsAndRepliesNotificationsSettings.allCases {
+                    items.append(ActionSheetButtonItem(title: "Notifications.MentionsAndReplies.value.\(value.rawValue)".i18n(lang), color: .accent, action: { [weak actionSheet] in
+                        actionSheet?.dismissAnimated()
+                        setAction(value.rawValue)
+                    }))
+                }
             case .downloadSpeedBoost:
                 let setAction: (String) -> Void = { value in
                     SGSimpleSettings.shared.downloadSpeedBoost = value
@@ -681,7 +730,18 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
         ])])
         presentControllerImpl?(actionSheet, ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
     }, openDisclosureLink: { link in
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         switch (link) {
+            case .sessionBackupManager:
+                pushControllerImpl?(sgSessionBackupManagerController(context: context, presentationData: presentationData))
+            case .messageFilter:
+                pushControllerImpl?(sgMessageFilterController(presentationData: presentationData))
+            case .appBages:
+                if #available(iOS 14.0, *) {
+                    pushControllerImpl?(sgAppBadgeSettingsController(context: context, presentationData: presentationData))
+                } else {
+                    presentControllerImpl?(context.sharedContext.makeSGUpdateIOSController(), nil)
+                }
             case .languageSettings:
                 pushControllerImpl?(context.sharedContext.makeLocalizationListController(context: context))
             case .contentSettings:

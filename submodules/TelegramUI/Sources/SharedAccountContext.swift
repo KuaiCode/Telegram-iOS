@@ -1,7 +1,7 @@
 // MARK: Swiftgram
 import SGIAP
 import SGPayWall
-import SGProUI
+import SGSettingsUI
 import SGSimpleSettings
 //
 import Foundation
@@ -4681,7 +4681,7 @@ extension SharedAccountContextImpl {
     }
     
     public func makeSGProController(context: AccountContext) -> ViewController {
-        let controller = sgProController(context: context)
+        let controller = sgSettingsController(context: context)
         return controller
     }
 

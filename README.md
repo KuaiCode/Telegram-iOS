@@ -20,7 +20,7 @@ Airygram's compilation steps follow the upstream app. The internal Bazel targets
 1. 将本次配置推送到你自己的 GitHub 仓库默认分支。在仓库 **Actions** 页面启用工作流（fork 首次使用可能需要手动启用）。
 2. 在 [my.telegram.org/apps](https://my.telegram.org/apps) 获取自己的 Telegram API 凭据。进入仓库 **Settings → Secrets and variables → Actions → New repository secret**，添加 `TELEGRAM_API_ID`（数字）和 `TELEGRAM_API_HASH`（32 位十六进制字符串）。缺少或格式错误会在编译前报错；不要使用上游示例凭据。
 3. 进入 **Actions → Build Airygram unsigned IPA → Run workflow**，选择包含配置的分支并运行。
-4. 成功后，在该次运行的 **Artifacts** 下载 `Airygram-unsigned-运行编号`，解压得到 `Airygram-unsigned.ipa` 和调试符号压缩包。失败时查看步骤日志；进入编译阶段后还会上传 `Airygram-build-log-运行编号`。产物保留 14 天。
+4. 成功后，在该次运行的 **Artifacts** 下载 `Airygram-unsigned-运行编号`，解压得到 `Airygram-unsigned.ipa`。调试符号单独存放在 `Airygram-DSYMs-运行编号`，仅排查崩溃时需要下载，并与同一运行编号的 IPA 配套保存。失败时查看步骤日志；进入编译阶段后还会上传 `Airygram-build-log-运行编号`。产物保留 14 天。
 
 工作流使用 macOS 26 ARM runner，严格按 `versions.json` 选择 Xcode（当前为 26.2）和 Bazel，并递归拉取 Git 子模块。GitHub 镜像若移除所需 Xcode，会明确失败，不会自动换版本。首次完整构建可能耗时较长；私有仓库注意账户的 Actions 用量和预算。
 

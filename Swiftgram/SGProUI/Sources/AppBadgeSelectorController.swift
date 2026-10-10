@@ -16,23 +16,9 @@ struct AppBadge: Identifiable, Hashable {
 }
 
 func getAvailableAppBadges() -> [AppBadge] {
-    var appBadges: [AppBadge] = [
+    return [
         .init(displayName: "Default", assetName: "Components/AppBadge"),
-        .init(displayName: "Sky", assetName: "SkyAppBadge"),
-        .init(displayName: "Night", assetName: "NightAppBadge"),
-        .init(displayName: "Titanium", assetName: "TitaniumAppBadge"),
-        .init(displayName: "Pro", assetName: "ProAppBadge"),
-        .init(displayName: "Day", assetName: "DayAppBadge"),
     ]
-
-    if SGSimpleSettings.shared.duckyAppIconAvailable {
-        appBadges.append(.init(displayName: "Ducky", assetName: "DuckyAppBadge"))
-    }
-    appBadges += [
-        .init(displayName: "Sparkling", assetName: "SparklingAppBadge"),
-    ]
-
-    return appBadges
 }
     
 @available(iOS 14.0, *)

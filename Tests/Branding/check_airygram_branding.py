@@ -152,6 +152,34 @@ def check_icons():
     print("Airygram icon assets and build wiring checks passed.")
 
 
+def check_app_badge():
+    selector = read("Swiftgram/SGProUI/Sources/AppBadgeSelectorController.swift")
+    available_badges = selector.split("func getAvailableAppBadges()", 1)[1].split("\n}", 1)[0]
+    assets = re.findall(r'assetName: "([^"]+)"', available_badges)
+    assert assets == ["Components/AppBadge"], assets
+    catalog = ROOT / "submodules/TelegramUI/Images.xcassets"
+    for asset in assets:
+        directory = catalog / f"{asset}.imageset"
+        images = json.loads((directory / "Contents.json").read_text())["images"]
+        populated = [image for image in images if "filename" in image]
+        assert len(populated) == 1 and populated[0]["scale"] == "3x"
+        png = (directory / populated[0]["filename"]).read_bytes()
+        assert png[:16] == b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        assert struct.unpack(">IIBB", png[16:26]) == (279, 66, 8, 6)
+        assert {path.name for path in directory.glob("*.png")} == {populated[0]["filename"]}
+    assert not list((ROOT / "Swiftgram/SGAppBadgeAssets/Images.xcassets").glob("*.imageset"))
+    # Removing choices must preserve the settings page and fallback for saved, now-missing badges.
+    assert "ForEach(availableAppBadges)" in selector and "onSelectBadge(badge)" in selector
+    assert "SGSimpleSettings.shared.customAppBadge = selectedBadge.assetName" in selector
+    assert '?? UIImage(bundleImageName: "Components/AppBadge")' in selector
+    window = read("submodules/Display/Source/WindowContent.swift")
+    assert "let image = UIImage(bundleImageName: SGSimpleSettings.shared.customAppBadge)" in window
+    assert 'self.badgeView.image = UIImage(bundleImageName: "Components/AppBadge")' in window
+    assert "sgAppBadgeSettingsController(context: context" in read("Swiftgram/SGProUI/Sources/SGProUI.swift")
+    print("Airygram App Badge assets, selector, and saved-choice fallback checks passed.")
+
+
 if __name__ == "__main__":
     check_branding()
     check_icons()
+    check_app_badge()

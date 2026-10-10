@@ -93,7 +93,7 @@ private func getCommonTimeline(friends: [Friend]?, in context: TimelineProviderC
     
     initializeAccountManagement()
     
-    let deviceSpecificEncryptionParameters = BuildConfig.deviceSpecificEncryptionParameters(rootPath, baseAppBundleId: baseAppBundleId)
+    let deviceSpecificEncryptionParameters = BuildConfig.deviceSpecificEncryptionParameters(rootPath, baseAppBundleId: sgBaseBundleIdentifier())
     let encryptionParameters = ValueBoxEncryptionParameters(forceEncryptionIfNoSet: false, key: ValueBoxEncryptionParameters.Key(data: deviceSpecificEncryptionParameters.key)!, salt: ValueBoxEncryptionParameters.Salt(data: deviceSpecificEncryptionParameters.salt)!)
     
     var itemsByAccount: [Int64: [(Int64, Friend)]] = [:]

@@ -22,4 +22,5 @@ config_setting(
 
 exports_files([
     "GenerateStrings/GenerateStrings.py",
+    "patches/rules-swift-dump-ast-warning-policy.patch",
 ])

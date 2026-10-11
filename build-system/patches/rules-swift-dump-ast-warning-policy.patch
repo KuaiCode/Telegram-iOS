@@ -1,0 +1,10 @@
+--- a/swift/toolchains/config/compile_config.bzl
++++ b/swift/toolchains/config/compile_config.bzl
+@@ -174,7 +174,6 @@
+             actions = [SWIFT_ACTION_DUMP_AST],
+             configurators = [
+                 add_arg("-dump-ast"),
+-                add_arg("-suppress-warnings"),
+             ],
+         ),
+         ActionConfigInfo(

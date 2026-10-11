@@ -272,7 +272,7 @@ combined_lines.append("")
 combined_lines.append("let package = Package(")
 combined_lines.append("    name: \"Telegram\",")
 combined_lines.append("    platforms: [")
-combined_lines.append("        .iOS(.v13)")
+combined_lines.append("        .iOS(.v16)")
 combined_lines.append("    ],")
 combined_lines.append("    products: products,")
 
@@ -417,6 +417,11 @@ for name, module in sorted(modules.items()):
             defines = module.get("defines", [])
             copts = module.get("copts", [])
             cxxopts = module.get("cxxopts", [])
+            # Match the API deprecation warning policy in .bazelrc.
+            if "-Werror" in copts:
+                copts = copts + ["-Wno-error=deprecated-declarations"]
+            if "-Werror" in cxxopts:
+                cxxopts = cxxopts + ["-Wno-error=deprecated-declarations"]
 
             if defines or copts or (module_public_headers_prefix is not None):
                 spm_target["cSettings"] = []
@@ -503,6 +508,10 @@ for name, module in sorted(modules.items()):
         elif module_type == "swift_library":
             defines = module.get("defines", [])
             swift_copts = module.get("copts", []) # These are actual swiftc flags
+            if "-warnings-as-errors" in swift_copts:
+                # Match .bazelrc: keep API deprecations visible on iOS 16 without
+                # relaxing warnings-as-errors for other diagnostics.
+                swift_copts = swift_copts + ["-Wwarning", "DeprecatedDeclaration"]
 
             # Handle cSettings for defines if they exist
             if defines:

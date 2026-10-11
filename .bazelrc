@@ -13,6 +13,11 @@ build:macos --features=debug_prefix_map_pwd_is_dot
 build:macos --features=swift.cacheable_swiftmodules
 build:macos --features=swift.debug_prefix_map
 build:macos --features=swift.enable_vfsoverlays
+# Raising the iOS deployment target exposes upstream API deprecations. Keep them
+# visible as warnings while preserving warnings-as-errors for other diagnostics.
+build:macos --@build_bazel_rules_swift//swift:copt=-Wwarning
+build:macos --@build_bazel_rules_swift//swift:copt=DeprecatedDeclaration
+build:macos --copt=-Wno-error=deprecated-declarations
 build:dbg --features=swift.emit_swiftsourceinfo
 
 # Linux-specific settings (auto-applied on Linux via --enable_platform_specific_config)

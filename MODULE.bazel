@@ -38,9 +38,12 @@ local_path_override(
 )
 
 bazel_dep(name = "rules_swift", repo_name = "build_bazel_rules_swift")
-local_path_override(
+git_override(
     module_name = "rules_swift",
-    path = "./build-system/bazel-rules/rules_swift",
+    remote = "https://github.com/bazelbuild/rules_swift.git",
+    commit = "9dce728ed1e9168ec8c912fcd3443dad48a286fe",
+    patches = ["//build-system:patches/rules-swift-dump-ast-warning-policy.patch"],
+    patch_strip = 1,
 )
 
 bazel_dep(name = "apple_support", repo_name = "build_bazel_apple_support")

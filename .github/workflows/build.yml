@@ -53,6 +53,9 @@ jobs:
           swiftc -warnings-as-errors Swiftgram/SGSimpleSettings/Sources/MessageFilterRules.swift Tests/MessageFilter/main.swift -o "$RUNNER_TEMP/check-message-filter"
           "$RUNNER_TEMP/check-message-filter"
 
+      - name: Check Swift warning configuration
+        run: python3 scripts/check_swift_warning_configuration.py
+
       - name: Build unsigned device IPA
         run: |
           mkdir -p build/artifacts

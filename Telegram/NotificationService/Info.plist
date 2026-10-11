@@ -28,6 +28,6 @@
 		<string>NotificationService</string>
 	</dict>
 	<key>MinimumOSVersion</key>
-	<string>10.0</string>
+	<string>16.0</string>
 </dict>
 </plist>

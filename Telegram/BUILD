@@ -170,7 +170,7 @@ genrule(
     ],
 )
 
-minimum_os_version = "13.0"
+minimum_os_version = "16.0"
 minimum_watchos_version="7.0" # MARK: Swiftgram
 
 notificationServiceExtensionVersion = "v1"
@@ -1177,8 +1177,8 @@ genrule(
     cmd_bash =
 """
     name=WidgetExtension.appex
-    cat $(location PatchMinOSVersion.source.sh) | sed -e "s/<<<MIN_OS_VERSION>>>/14\\.0/g" | sed -e "s/<<<NAME>>>/$$name/g" > $(location SetMinOsVersionWidgetExtension.sh)
-""",
+    cat $(location PatchMinOSVersion.source.sh) | sed -e "s/<<<MIN_OS_VERSION>>>/{minimum_os_version}/g" | sed -e "s/<<<NAME>>>/$$name/g" > $(location SetMinOsVersionWidgetExtension.sh)
+""".format(minimum_os_version = minimum_os_version),
     srcs = [
         "PatchMinOSVersion.source.sh",
     ],
@@ -1452,8 +1452,8 @@ genrule(
     cmd_bash =
 """
     name=SGActionRequestHandler.appex
-    cat $(location PatchMinOSVersion.source.sh) | sed -e "s/<<<MIN_OS_VERSION>>>/14\\.0/g" | sed -e "s/<<<NAME>>>/$$name/g" > $(location SetMinOsVersionSGActionRequestHandler.sh)
-""",
+    cat $(location PatchMinOSVersion.source.sh) | sed -e "s/<<<MIN_OS_VERSION>>>/{minimum_os_version}/g" | sed -e "s/<<<NAME>>>/$$name/g" > $(location SetMinOsVersionSGActionRequestHandler.sh)
+""".format(minimum_os_version = minimum_os_version),
     srcs = [
         "PatchMinOSVersion.source.sh",
     ],

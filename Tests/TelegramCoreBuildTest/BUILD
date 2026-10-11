@@ -143,7 +143,7 @@ ios_application(
     name = module_name,
     bundle_id = "ph.telegra.Telegraph",
     families = ["iphone", "ipad"],
-    minimum_os_version = "11.0",
+    minimum_os_version = "16.0",
     provisioning_profile = None,
     infoplists = [
         ":AppInfoPlist",

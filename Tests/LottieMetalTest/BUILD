@@ -191,7 +191,7 @@ ios_application(
     name = "LottieMetalTest",
     bundle_id = "ph.telegra.Telegraph",
     families = ["iphone", "ipad"],
-    minimum_os_version = "12.0",
+    minimum_os_version = "16.0",
     provisioning_profile = "@build_configuration//provisioning:Telegram.mobileprovision",
     infoplists = [
         ":AppInfoPlist",

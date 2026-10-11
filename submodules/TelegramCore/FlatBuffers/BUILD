@@ -6,9 +6,7 @@ swift_library(
     srcs = glob([
         "Sources/**/*.swift",
     ]),
-    copts = [
-        "-suppress-warnings",
-    ],
+    # -suppress-warnings conflicts with the diagnostic group policy in .bazelrc.
     deps = [
     ],
     visibility = [

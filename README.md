@@ -2,6 +2,8 @@
 
 Telegram fork for iOS, based on Swiftgram.
 
+Minimum supported version: iOS 16.0.
+
 Upstream Swiftgram links:
 
 [<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="50">](https://apps.apple.com/app/apple-store/id6471879502?pt=126511626&ct=gh&mt=8)
@@ -25,6 +27,8 @@ Airygram's compilation steps follow the upstream app. The internal Bazel targets
 工作流使用 macOS 26 ARM runner，严格按 `versions.json` 选择 Xcode（当前为 26.2）和 Bazel，并递归拉取 Git 子模块。GitHub 镜像若移除所需 Xcode，会明确失败，不会自动换版本。首次完整构建可能耗时较长；私有仓库注意账户的 Actions 用量和预算。
 
 CI 会应用 `build-system/patches/rules-apple-unsigned-profiles.patch`，让锁定版本的 `rules_apple` 在禁用签名时不再要求嵌入描述文件，覆盖主 App 和 iOS 扩展。补丁仅应用到 runner 的临时子模块副本，并检查签名/未签名及设备/模拟器组合；升级子模块后若补丁不适用，工作流会报错。
+
+Bazel 在本地和 CI 中均从 `MODULE.bazel` 指定的固定提交获取 `rules_swift`，自动应用 AST 导出警告参数补丁。原子模块保留用于跟踪上游版本和检查补丁，直接修改该子模块不再改变构建依赖。初始化子模块后，可运行 `python scripts/check_swift_warning_configuration.py` 检查版本、补丁和警告参数，无需编译；CI 也会在构建前执行该检查。
 
 Bundle ID 保持 `dev.kuaicode.airygram`。`AAAAAAAAAA` 仅用于未签名构建的 Team ID 占位，**不是有效 Apple Team ID**。IPA 不能直接安装或提交 App Store，需要自行签名；签名时应使用自己的 Team ID、描述文件，并处理主 App 和扩展的 App Group、钥匙串等 entitlement。推送等功能仍依赖有效签名及相应服务配置。
 

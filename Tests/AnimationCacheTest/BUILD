@@ -139,7 +139,7 @@ ios_application(
     name = module_name,
     bundle_id = "org.telegram.{}".format(module_name),
     families = ["iphone", "ipad"],
-    minimum_os_version = "9.0",
+    minimum_os_version = "16.0",
     provisioning_profile = "@build_configuration//provisioning:Wildcard.mobileprovision",
     infoplists = [
         ":AppInfoPlist",

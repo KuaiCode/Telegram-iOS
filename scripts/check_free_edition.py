@@ -101,9 +101,9 @@ def check_sources(sources):
                           rf"guard {re.escape(POLICY)} \|\|", text),
                 f"Input toolbar user switch must precede entitlement: {path}")
     filtered = read(FILTER)
-    require("!self.wasFilteredKeywordTested && !SGSimpleSettings.shared.messageFilterKeywords.isEmpty && ("
+    require("!configuration.groups.isEmpty && ("
             + POLICY + " || SGSimpleSettings.shared.ephemeralStatus > 1)" in filtered,
-            "Message keyword filter guards/grouping changed")
+            "Message group filter guards/grouping changed")
     notifications = read(NOTIFICATIONS)
     for flag in ("isEmpty", "silent"):
         require(f"({POLICY} || self.sgStatus.status > 1) && !self.{flag}" in notifications,
@@ -195,13 +195,12 @@ def check_sources(sources):
 
 
 def check_feature_boundaries(sources):
-    """Evaluate the actual three compound Swift conditions over 80 input cases."""
+    """Evaluate the actual three compound Swift conditions over 60 input cases."""
     cases = (
         (NOTIFICATIONS, "&& !self.isEmpty", {"self.isEmpty": "blocked"}),
         (NOTIFICATIONS, "&& !self.silent", {"self.silent": "blocked"}),
-        (FILTER, "if !self.wasFilteredKeywordTested", {
-            "self.wasFilteredKeywordTested": "tested",
-            "SGSimpleSettings.shared.messageFilterKeywords.isEmpty": "empty",
+        (FILTER, "if !configuration.groups.isEmpty", {
+            "configuration.groups.isEmpty": "empty",
         }),
     )
     for path, marker, replacements in cases:
@@ -216,7 +215,7 @@ def check_feature_boundaries(sources):
             assert isinstance(node, (ast.Expression, ast.BoolOp, ast.UnaryOp, ast.Compare,
                                      ast.Name, ast.Load, ast.Constant, ast.And, ast.Or, ast.Not, ast.Gt)), marker
             if isinstance(node, ast.Name):
-                assert node.id in {"free", "status", "blocked", "tested", "empty"}, marker
+                assert node.id in {"free", "status", "blocked", "empty"}, marker
         code = compile(tree, "<Swift free-edition condition>", "eval")
         for free, status in product((False, True), (-1, 0, 1, 2, 3)):
             flags = product((False, True), repeat=len(replacements))
@@ -261,6 +260,6 @@ if __name__ == "__main__":
     else:
         check_feature_boundaries(sources)
         check_detector(sources)
-        print("Free-edition source checks passed (10 gates; 80 boundary cases; 6 in-memory mutations).")
+        print("Free-edition source checks passed (10 gates; 60 boundary cases; 6 in-memory mutations).")
     print("Static checks only; macOS/iOS compilation and real-device tests remain required.")
     sys.exit(bool(failures))

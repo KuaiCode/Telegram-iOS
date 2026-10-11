@@ -666,13 +666,15 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     public var playedEffectAnimation: Bool = false
     public var effectAnimationNodes: [ChatMessageTransitionNode.DecorationItemNode] = []
     
-    private var wasFilteredKeywordTested: Bool = false
-    private var matchedFilterKeyword: String? = nil
+    private var messageFilterObserver: NSObjectProtocol?
     
     public required init(rotated: Bool) {
         super.init(layerBacked: false, rotated: rotated)
         if rotated {
             self.transform = CATransform3DMakeRotation(CGFloat.pi, 0.0, 0.0, 1.0)
+        }
+        self.messageFilterObserver = NotificationCenter.default.addObserver(forName: SGMessageFilterStore.didChange, object: SGSimpleSettings.shared.messageFilter, queue: .main) { [weak self] _ in
+            self?.updateMessageFilter()
         }
     }
 
@@ -682,6 +684,9 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     
     deinit {
         self.fetchEffectDisposable?.dispose()
+        if let messageFilterObserver = self.messageFilterObserver {
+            NotificationCenter.default.removeObserver(messageFilterObserver)
+        }
     }
     
     override open func reuse() {
@@ -689,23 +694,23 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
         
         self.item = nil
         self.frame = CGRect()
-        self.wasFilteredKeywordTested = false
-        self.matchedFilterKeyword = nil
+        self.alpha = 1.0
     }
     
     open func setupItem(_ item: ChatMessageItem, synchronousLoad: Bool) {
         self.item = item
-        
-        if !self.wasFilteredKeywordTested && !SGSimpleSettings.shared.messageFilterKeywords.isEmpty && (SGFeaturePolicy.isFreeEdition || SGSimpleSettings.shared.ephemeralStatus > 1) {
-            let incomingMessage = item.message.effectivelyIncoming(item.context.account.peerId)
-            if incomingMessage {
-                if let matchedKeyword = SGSimpleSettings.shared.messageFilterKeywords.first(where: { item.message.text.contains($0) }) {
-                     self.matchedFilterKeyword = matchedKeyword
-                     self.alpha = item.presentationData.theme.theme.overallDarkAppearance ? 0.2 : 0.3
-                }
+        self.updateMessageFilter()
+    }
+
+    private func updateMessageFilter() {
+        var alpha: CGFloat = 1.0
+        let configuration = SGSimpleSettings.shared.messageFilter.configuration
+        if !configuration.groups.isEmpty && (SGFeaturePolicy.isFreeEdition || SGSimpleSettings.shared.ephemeralStatus > 1) {
+            if let item = self.item, item.message.adAttribute == nil, item.message.effectivelyIncoming(item.context.account.peerId), configuration.action(for: item.message.text) == .dim {
+                alpha = item.presentationData.theme.theme.overallDarkAppearance ? 0.2 : 0.3
             }
         }
-        self.wasFilteredKeywordTested = true
+        self.alpha = alpha
     }
     
     open func updateAccessibilityData(_ accessibilityData: ChatMessageAccessibilityData) {

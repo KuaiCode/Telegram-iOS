@@ -48,6 +48,11 @@ jobs:
           swiftc Swiftgram/SGAppGroupIdentifier/Sources/AppGroupLocation.swift Tests/Resigning/main.swift -o "$RUNNER_TEMP/check-app-group"
           "$RUNNER_TEMP/check-app-group"
 
+      - name: Check message filter rules
+        run: |
+          swiftc -warnings-as-errors Swiftgram/SGSimpleSettings/Sources/MessageFilterRules.swift Tests/MessageFilter/main.swift -o "$RUNNER_TEMP/check-message-filter"
+          "$RUNNER_TEMP/check-message-filter"
+
       - name: Build unsigned device IPA
         run: |
           mkdir -p build/artifacts

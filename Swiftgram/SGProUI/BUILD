@@ -24,6 +24,7 @@ swift_library(
         #
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/Display:Display",
+        "//submodules/LegacyMediaPickerUI:LegacyMediaPickerUI",
         "//submodules/Postbox:Postbox",
         "//submodules/TelegramCore:TelegramCore",
         "//submodules/MtProtoKit:MtProtoKit",

@@ -200,6 +200,20 @@
 "SessionBackup.Notice" = "Sessions are encrypted and stored in the device Keychain. Sessions never leave your device.\n\nIMPORTANT: To restore sessions on a new device or after an OS reset, you MUST enable encrypted backups, otherwise Keychain won't be transfered.\n\nNOTE: Sessions may still be revoked by Telegram or from another device.";
 
 "MessageFilter.Title" = "Message Filter";
+"MessageFilter.Selection.Title" = "Select Words to Filter";
+"MessageFilter.Selection.Help" = "Press and hold to select text";
+"MessageFilter.Selection.AccessibilityHelp" = "Use the Words rotor to select text, then choose Add Keyword from Actions. You can also choose Select All first.";
+"MessageFilter.Selection.Words" = "Words";
+"MessageFilter.Selection.PendingCount" = "Selected keywords ({count})";
+"MessageFilter.Selection.Group" = "Target Group";
+"MessageFilter.Selection.DefaultGroup" = "Quick Block";
+"MessageFilter.Selection.AddKeyword" = "Add Keyword";
+"MessageFilter.Selection.Submit" = "Submit";
+"MessageFilter.Selection.Close" = "Close";
+"MessageFilter.Selection.AllDuplicate" = "All selected keywords already exist in this group.";
+"MessageFilter.Selection.TargetMissing" = "This group no longer exists. Please select a group again.";
+"MessageFilter.Selection.Saved" = "Added {count} keywords.";
+"MessageFilter.Selection.RemoveKeyword" = "Remove keyword: {keyword}";
 "MessageFilter.SubTitle" = "Remove distractions and reduce visibility of messages containing keywords below.\nKeywords are case-sensitive.";
 "MessageFilter.Keywords.Title" = "Keywords";
 "MessageFilter.InputPlaceholder" = "Enter keyword";

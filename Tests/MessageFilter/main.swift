@@ -1,4 +1,5 @@
 import Foundation
+import Dispatch
 
 func expectError(_ expected: SGMessageFilterRuleFileError, _ body: () throws -> Void) {
     do {
@@ -25,6 +26,34 @@ final class NotificationCounter: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return count
+    }
+}
+
+final class ConcurrentKeywordAppends: @unchecked Sendable {
+    let store: SGMessageFilterStore
+
+    init(store: SGMessageFilterStore) {
+        self.store = store
+    }
+
+    func append(_ index: Int) {
+        do {
+            let count = try store.appendKeywords(["concurrent-\(index)"], toGroupNamed: "Ads", defaultGroupName: "Default")
+            assert(count == 1)
+        } catch {
+            assertionFailure("Concurrent append failed: \(error)")
+        }
+    }
+}
+
+func expectMissingKeywordGroup(_ body: () throws -> Void) {
+    do {
+        try body()
+        assertionFailure("Expected missing keyword group")
+    } catch let error as SGMessageFilterKeywordError {
+        assert(error == .targetGroupMissing)
+    } catch {
+        assertionFailure("Unexpected error: \(error)")
     }
 }
 
@@ -153,5 +182,105 @@ assert(corrupt.loadError == .unreadableStoredConfiguration)
 assert(corrupt.configuration == empty)
 expectError(.unreadableStoredConfiguration) { try corrupt.update(original) }
 assert(defaults.data(forKey: "messageFilterGroups") == corruptData)
+expectError(.unreadableStoredConfiguration) { _ = try corrupt.appendKeywords(["new"], toGroupNamed: nil, defaultGroupName: "Default") }
+assert(defaults.data(forKey: "messageFilterGroups") == corruptData)
+assert(corrupt.lastUsedGroupName == nil)
 
-print("Message filter matching, groups, JSON/TXT codecs, limits, merging, migration and persistence checks passed.")
+func testKeywordSelection() throws {
+    let suite = "MessageFilterKeywordTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = SGMessageFilterStore(userDefaults: defaults)
+    let initialData = defaults.data(forKey: "messageFilterGroups")
+    assert(store.preferredKeywordGroup == nil)
+    assert(store.lastUsedGroupName == nil)
+    assert(try! store.appendKeywords([" \n", ""], toGroupNamed: nil, defaultGroupName: "默认") == 0)
+    assert(store.configuration.groups.isEmpty)
+    assert(defaults.data(forKey: "messageFilterGroups") == initialData)
+    assert(store.lastUsedGroupName == nil)
+    expectMissingKeywordGroup { _ = try store.appendKeywords(["new"], toGroupNamed: "Deleted", defaultGroupName: "Default") }
+    expectError(.emptyGroupName) { _ = try store.appendKeywords(["new"], toGroupNamed: nil, defaultGroupName: " ") }
+    assert(defaults.data(forKey: "messageFilterGroups") == initialData)
+    let selected = [" 汉字 ", "📢", "e\u{301}", "first\nsecond", "SALE", "sale", "汉字", " \n"]
+    assert(try! store.appendKeywords(selected, toGroupNamed: nil, defaultGroupName: " 默认 ") == 6)
+    assert(store.configuration.groups == [SGMessageFilterGroup(name: "默认", keywords: ["汉字", "📢", "e\u{301}", "first\nsecond", "SALE", "sale"])])
+    assert(store.configuration.groups[0].keywords[2].utf8.elementsEqual("e\u{301}".utf8))
+    assert(store.lastUsedGroupName == "默认")
+    assert(SGMessageFilterStore(userDefaults: defaults).lastUsedGroupName == "默认")
+    assert(store.preferredKeywordGroup?.name == "默认")
+    assert(SGMessageFilterStore.normalizedKeywords(selected) == store.configuration.groups[0].keywords)
+
+    defaults.set("Other", forKey: "messageFilterLastUsedGroupName")
+    let noOpData = defaults.data(forKey: "messageFilterGroups")
+    let changes = NotificationCounter()
+    let observer = NotificationCenter.default.addObserver(forName: SGMessageFilterStore.didChange, object: store, queue: nil) { _ in
+        changes.increment()
+    }
+    assert(try! store.appendKeywords([" 汉字 ", "📢", "é", "\n"], toGroupNamed: "默认", defaultGroupName: "Default") == 0)
+    assert(try! store.appendKeywords([" "], toGroupNamed: nil, defaultGroupName: "Default") == 0)
+    NotificationCenter.default.removeObserver(observer)
+    assert(changes.value == 0)
+    assert(defaults.data(forKey: "messageFilterGroups") == noOpData)
+    assert(store.lastUsedGroupName == "Other")
+    assert(store.preferredKeywordGroup?.name == "默认")
+
+    let initial = SGMessageFilterConfiguration(groups: [
+        SGMessageFilterGroup(name: "Trusted", action: .allow, keywords: ["trusted"]),
+        SGMessageFilterGroup(name: "Ads", keywords: ["sale"])
+    ])
+    try store.update(initial)
+    assert(store.preferredKeywordGroup?.name == "Ads")
+    defaults.set("Trusted", forKey: "messageFilterLastUsedGroupName")
+    assert(store.preferredKeywordGroup?.name == "Trusted")
+    var latest = store.configuration
+    latest.matchingMode = .strongest
+    latest.groups.append(SGMessageFilterGroup(name: "AddedWhileOpen", keywords: ["current"]))
+    try store.update(latest)
+    assert(try! store.appendKeywords(["new", "new"], toGroupNamed: "Ads", defaultGroupName: "Default") == 1)
+    assert(store.configuration.matchingMode == .strongest)
+    assert(store.configuration.groups.map(\.name) == ["Trusted", "Ads", "AddedWhileOpen"])
+    assert(store.configuration.groups[1].keywords == ["sale", "new"])
+    assert(store.configuration.groups[2].keywords == ["current"])
+    assert(store.lastUsedGroupName == "Ads")
+
+    let concurrent = ConcurrentKeywordAppends(store: store)
+    DispatchQueue.concurrentPerform(iterations: 16) { index in
+        concurrent.append(index)
+    }
+    assert(Set(store.configuration.groups[1].keywords) == Set(["sale", "new"] + (0..<16).map { "concurrent-\($0)" }))
+    let beforeFailure = store.configuration
+    let dataBeforeFailure = defaults.data(forKey: "messageFilterGroups")
+    expectError(.fileTooLarge) {
+        _ = try store.appendKeywords([String(repeating: "x", count: SGMessageFilterRuleFile.maximumFileSize + 1)], toGroupNamed: "Trusted", defaultGroupName: "Default")
+    }
+    assert(store.configuration == beforeFailure)
+    assert(defaults.data(forKey: "messageFilterGroups") == dataBeforeFailure)
+    assert(store.lastUsedGroupName == "Ads")
+
+    var renamed = store.configuration
+    renamed.groups[1].name = " Promotions "
+    try store.update(renamed)
+    store.renameLastUsedGroup(from: "Ads", to: " Promotions ")
+    assert(store.lastUsedGroupName == "Promotions")
+    assert(store.preferredKeywordGroup?.name == "Promotions")
+    store.renameLastUsedGroup(from: "Promotions", to: "Missing")
+    assert(store.lastUsedGroupName == "Promotions")
+    var invalidRename = store.configuration
+    invalidRename.groups[1].name = "Trusted"
+    expectError(.duplicateGroupName) { try store.update(invalidRename) }
+    assert(store.lastUsedGroupName == "Promotions")
+    try store.update(SGMessageFilterConfiguration(groups: [initial.groups[0]]))
+    assert(store.preferredKeywordGroup?.name == "Trusted")
+    let afterDelete = defaults.data(forKey: "messageFilterGroups")
+    expectMissingKeywordGroup { _ = try store.appendKeywords(["stale"], toGroupNamed: "Promotions", defaultGroupName: "Default") }
+    expectMissingKeywordGroup { _ = try store.appendKeywords(["stale"], toGroupNamed: nil, defaultGroupName: "Default") }
+    assert(defaults.data(forKey: "messageFilterGroups") == afterDelete)
+    assert(store.lastUsedGroupName == "Promotions")
+    defaults.removeObject(forKey: "messageFilterLastUsedGroupName")
+    assert(store.lastUsedGroupName == nil)
+    assert(store.preferredKeywordGroup?.name == "Trusted")
+}
+
+try testKeywordSelection()
+
+print("Message filter matching, groups, JSON/TXT codecs, limits, merging, migration, persistence and keyword selection checks passed.")

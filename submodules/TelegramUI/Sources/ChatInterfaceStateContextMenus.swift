@@ -1,5 +1,6 @@
 import SGStrings
 import SGSimpleSettings
+import SGProUI
 import PeerInfoUI
 import Foundation
 import UIKit
@@ -1496,6 +1497,18 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             }
         }
         
+        if #available(iOS 13.0, *), !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !isAction, !isExpired, message.adAttribute == nil, !isCopyProtected, !chatPresentationInterfaceState.myCopyProtectionEnabled {
+            actions.append(.action(ContextMenuActionItem(text: i18n("MessageFilter.Selection.Title", chatPresentationInterfaceState.strings.baseLanguageCode), icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/TagFilter"), color: theme.actionSheet.primaryTextColor)
+            }, action: { c, _ in
+                c?.dismiss(completion: {
+                    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+                    let controller = sgMessageFilterKeywordSelectionController(text: message.text, presentationData: presentationData)
+                    controllerInteraction.presentController(controller, ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
+                })
+            })))
+        }
+
         if resourceAvailable, !message.containsSecretMedia && !isCopyProtected {
             var mediaReference: AnyMediaReference?
             var isVideo = false

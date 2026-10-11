@@ -180,6 +180,20 @@
 "SessionBackup.Notice" = "會話會被加密並儲存在設備的鑰匙圈中。會話從不離開您的設備。\n\n重要提示：要在新設備上或在操作系統重置後恢復會話，您必須啟用加密備份，否則鑰匙圈將無法轉移。\n\n注意：會話仍然可能被 Telegram 或其他設備撤銷。";
 
 "MessageFilter.Title" = "訊息過濾器";
+"MessageFilter.Selection.Title" = "選詞屏蔽";
+"MessageFilter.Selection.Help" = "按住以選取文字";
+"MessageFilter.Selection.AccessibilityHelp" = "使用「詞語」轉子選取文字，再在動作中選擇「新增關鍵詞」；也可以先選擇「全選」。";
+"MessageFilter.Selection.Words" = "詞語";
+"MessageFilter.Selection.PendingCount" = "選中關鍵詞（{count}）";
+"MessageFilter.Selection.Group" = "目標分組";
+"MessageFilter.Selection.DefaultGroup" = "快捷屏蔽";
+"MessageFilter.Selection.AddKeyword" = "新增關鍵詞";
+"MessageFilter.Selection.Submit" = "提交";
+"MessageFilter.Selection.Close" = "關閉";
+"MessageFilter.Selection.AllDuplicate" = "選中的關鍵詞均已存在於此分組中。";
+"MessageFilter.Selection.TargetMissing" = "此分組已不存在，請重新選擇分組。";
+"MessageFilter.Selection.Saved" = "已新增 {count} 個關鍵詞。";
+"MessageFilter.Selection.RemoveKeyword" = "移除關鍵詞：{keyword}";
 "MessageFilter.SubTitle" = "移除干擾並減少包含以下關鍵字的訊息的可見性。\n關鍵字區分大小寫。";
 "MessageFilter.Keywords.Title" = "關鍵字";
 "MessageFilter.InputPlaceholder" = "輸入關鍵字";

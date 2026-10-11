@@ -264,6 +264,7 @@ public final class TextSelectionNode: ASDisplayNode {
     public var canBeginSelection: (CGPoint) -> Bool = { _ in true }
     public var updateRange: ((NSRange?) -> Void)?
     public var presentMenu: ((UIView, CGPoint, [ContextMenuAction]) -> Void)?
+    public var additionalMenuActions: ((NSAttributedString) -> [ContextMenuAction])?
     private let present: (ViewController, Any?) -> Void
     private let rootView: () -> UIView?
     private let performAction: (NSAttributedString, TextSelectionAction) -> Void
@@ -730,10 +731,25 @@ public final class TextSelectionNode: ASDisplayNode {
     }
     
     private func displayMenu() {
-        guard let currentRects = self.currentRects, !currentRects.isEmpty, let currentRange = self.currentRange, let attributedString = self.textNodeOrView.currentText else {
+        guard let currentRange = self.currentRange, let attributedString = self.textNodeOrView.currentText else {
             return
         }
-        let range = NSRange(location: min(currentRange.0, currentRange.1), length: max(currentRange.0, currentRange.1) - min(currentRange.0, currentRange.1))
+        var range = NSRange(location: min(currentRange.0, currentRange.1), length: max(currentRange.0, currentRange.1) - min(currentRange.0, currentRange.1))
+        if self.additionalMenuActions != nil {
+            guard range.location >= 0, range.length > 0, range.location <= attributedString.length, range.length <= attributedString.length - range.location else {
+                return
+            }
+            // The tokenizer fallback and dragged handles can split a composed character.
+            let normalizedRange = (attributedString.string as NSString).rangeOfComposedCharacterSequences(for: range)
+            if normalizedRange != range {
+                range = normalizedRange
+                self.currentRange = (range.lowerBound, range.upperBound)
+                self.updateSelection(range: range, animateIn: false)
+            }
+        }
+        guard let currentRects = self.currentRects, !currentRects.isEmpty else {
+            return
+        }
         var completeRect = currentRects[0]
         for i in 0 ..< currentRects.count {
             completeRect = completeRect.union(currentRects[i])
@@ -767,7 +783,7 @@ public final class TextSelectionNode: ASDisplayNode {
         
         let adjustedRange = self.convertSelectionToOriginalText(attributedString: attributedString, range: range)
         
-        var actions: [ContextMenuAction] = []
+        var actions: [ContextMenuAction] = self.additionalMenuActions?(string) ?? []
         if self.enableCopy {
             actions.append(ContextMenuAction(content: .text(title: self.strings.Conversation_ContextMenuCopy, accessibilityLabel: self.strings.Conversation_ContextMenuCopy), action: { [weak self] in
                 self?.performAction(string, .copy)

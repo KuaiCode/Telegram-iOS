@@ -211,7 +211,9 @@ struct MessageFilterView: View {
         guard let index = configuration.groups.firstIndex(where: { $0.name == name }) else { return false }
         var updated = configuration
         updated.groups[index] = group
-        return save(updated)
+        guard save(updated) else { return false }
+        SGSimpleSettings.shared.messageFilter.renameLastUsedGroup(from: name, to: group.name)
+        return true
     }
 
     private func showOptions(title: String, options: [(String, Bool, () -> Void)]) {

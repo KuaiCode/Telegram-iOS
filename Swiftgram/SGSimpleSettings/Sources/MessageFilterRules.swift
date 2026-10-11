@@ -28,6 +28,10 @@ public enum SGMessageFilterRuleFileError: Error, Equatable {
     case unreadableStoredConfiguration
 }
 
+public enum SGMessageFilterKeywordError: Error, Equatable {
+    case targetGroupMissing
+}
+
 public struct SGMessageFilterGroup: Codable, Equatable {
     public var id: Int
     public var name: String
@@ -187,6 +191,7 @@ public enum SGMessageFilterRuleFile {
 public final class SGMessageFilterStore: NSObject {
     public static let didChange = Notification.Name("SGMessageFilterStoreDidChange")
     private static let configurationKey = "messageFilterGroups"
+    private static let lastUsedGroupKey = "messageFilterLastUsedGroupName"
     private let userDefaults: UserDefaults
     private let lock = NSLock()
     private var cachedConfiguration: SGMessageFilterConfiguration
@@ -226,21 +231,94 @@ public final class SGMessageFilterStore: NSObject {
         return cachedConfiguration
     }
 
+    public var lastUsedGroupName: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return userDefaults.string(forKey: Self.lastUsedGroupKey)
+    }
+
+    public var preferredKeywordGroup: SGMessageFilterGroup? {
+        lock.lock()
+        defer { lock.unlock() }
+        let groups = cachedConfiguration.groups
+        if let name = userDefaults.string(forKey: Self.lastUsedGroupKey), let group = groups.first(where: { $0.name == name }) {
+            return group
+        }
+        return groups.first(where: { $0.action == .dim }) ?? groups.first
+    }
+
+    public static func normalizedKeywords(_ keywords: [String]) -> [String] {
+        var seen = Set<String>()
+        return keywords.compactMap { keyword in
+            let keyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !keyword.isEmpty && seen.insert(keyword).inserted ? keyword : nil
+        }
+    }
+
+    public func appendKeywords(_ keywords: [String], toGroupNamed groupName: String?, defaultGroupName: String) throws -> Int {
+        let keywords = Self.normalizedKeywords(keywords)
+        guard !keywords.isEmpty else { return 0 }
+        let addedCount: Int
+        do {
+            lock.lock()
+            defer { lock.unlock() }
+            if let loadError = loadError {
+                throw loadError
+            }
+            var updated = cachedConfiguration
+            let index: Int
+            if let groupName = groupName, let existingIndex = updated.groups.firstIndex(where: { $0.name == groupName }) {
+                index = existingIndex
+            } else if groupName == nil && updated.groups.isEmpty {
+                updated.groups.append(SGMessageFilterGroup(name: defaultGroupName))
+                index = 0
+            } else {
+                throw SGMessageFilterKeywordError.targetGroupMissing
+            }
+            let existing = Set(updated.groups[index].keywords)
+            let additions = keywords.filter { !existing.contains($0) }
+            guard !additions.isEmpty else { return 0 }
+            updated.groups[index].keywords.append(contentsOf: additions)
+            _ = try updateLocked(updated)
+            userDefaults.set(cachedConfiguration.groups[index].name, forKey: Self.lastUsedGroupKey)
+            addedCount = additions.count
+        }
+        NotificationCenter.default.post(name: Self.didChange, object: self)
+        return addedCount
+    }
+
+    public func renameLastUsedGroup(from oldName: String, to newName: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        let newName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if oldName != newName, userDefaults.string(forKey: Self.lastUsedGroupKey) == oldName, cachedConfiguration.groups.contains(where: { $0.name == newName }) {
+            userDefaults.set(newName, forKey: Self.lastUsedGroupKey)
+        }
+    }
+
     public func update(_ configuration: SGMessageFilterConfiguration) throws {
+        let changed: Bool
+        do {
+            lock.lock()
+            defer { lock.unlock() }
+            changed = try updateLocked(configuration)
+        }
+        if changed {
+            NotificationCenter.default.post(name: Self.didChange, object: self)
+        }
+    }
+
+    private func updateLocked(_ configuration: SGMessageFilterConfiguration) throws -> Bool {
         if let loadError = loadError {
             throw loadError
         }
         let configuration = try configuration.normalized()
         let data = try SGMessageFilterRuleFile.encode(configuration: configuration, format: .json)
-        lock.lock()
         let changed = configuration != cachedConfiguration
         if changed {
             userDefaults.set(data, forKey: Self.configurationKey)
             cachedConfiguration = configuration
         }
-        lock.unlock()
-        if changed {
-            NotificationCenter.default.post(name: Self.didChange, object: self)
-        }
+        return changed
     }
 }

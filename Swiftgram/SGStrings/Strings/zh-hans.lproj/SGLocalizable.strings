@@ -180,6 +180,20 @@
 "SessionBackup.Notice" = "会话已加密并存储在设备的钥匙串中。会话永远不会离开您的设备。\n\n重要提示：要在新设备或操作系统重置后恢复会话，您必须启用加密备份，否则钥匙串将无法转移。\n\n注意：会话仍可能被Telegram或另一台设备撤销。";
 
 "MessageFilter.Title" = "消息过滤器";
+"MessageFilter.Selection.Title" = "选词屏蔽";
+"MessageFilter.Selection.Help" = "按住以选择文本";
+"MessageFilter.Selection.AccessibilityHelp" = "使用“词语”转子选择文字，再在操作中选择“添加关键词”；也可以先选择“全选”。";
+"MessageFilter.Selection.Words" = "词语";
+"MessageFilter.Selection.PendingCount" = "选中关键词（{count}）";
+"MessageFilter.Selection.Group" = "目标分组";
+"MessageFilter.Selection.DefaultGroup" = "快捷屏蔽";
+"MessageFilter.Selection.AddKeyword" = "添加关键词";
+"MessageFilter.Selection.Submit" = "提交";
+"MessageFilter.Selection.Close" = "关闭";
+"MessageFilter.Selection.AllDuplicate" = "选中的关键词均已存在于此分组中。";
+"MessageFilter.Selection.TargetMissing" = "此分组已不存在，请重新选择分组。";
+"MessageFilter.Selection.Saved" = "已添加 {count} 个关键词。";
+"MessageFilter.Selection.RemoveKeyword" = "移除关键词：{keyword}";
 "MessageFilter.SubTitle" = "移除干扰，减少包含以下关键字的消息的可见性。\n关键字区分大小写。";
 "MessageFilter.Keywords.Title" = "关键字";
 "MessageFilter.InputPlaceholder" = "输入关键字";

@@ -20,6 +20,7 @@ import ItemListUI
 import PresentationDataUtils
 import OverlayStatusController
 import AccountContext
+import SettingsUI
 import AppBundle
 import WebKit
 import PeerNameColorScreen
@@ -133,6 +134,7 @@ private enum SGSliderSetting: String {
 
 private enum SGDisclosureLink: String {
     case sessionBackupManager
+    case appIcons
     case appBages
     case contentSettings
     case languageSettings
@@ -167,6 +169,7 @@ private func SGControllerEntries(presentationData: PresentationData, callListSet
     entries.append(.oneFromManySelector(id: id.count, section: .notifications, settingName: .pinnedMessageNotifications, text: "Notifications.PinnedMessages.Title".i18n(lang), value: "Notifications.PinnedMessages.value.\(SGSimpleSettings.shared.pinnedMessageNotifications)".i18n(lang), enabled: true))
     entries.append(.oneFromManySelector(id: id.count, section: .notifications, settingName: .mentionsAndRepliesNotifications, text: "Notifications.MentionsAndReplies.Title".i18n(lang), value: "Notifications.MentionsAndReplies.value.\(SGSimpleSettings.shared.mentionsAndRepliesNotifications)".i18n(lang), enabled: true))
     entries.append(.header(id: id.count, section: .appearance, text: presentationData.strings.Appearance_Title.uppercased(), badge: nil))
+    entries.append(.disclosure(id: id.count, section: .appearance, link: .appIcons, text: presentationData.strings.Appearance_AppIcon))
     entries.append(.disclosure(id: id.count, section: .appearance, link: .appBages, text: "AppBadge.Title".i18n(lang)))
     entries.append(.notice(id: id.count, section: .appearance, text: "AppBadge.Notice".i18n(lang)))
     
@@ -732,6 +735,8 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
         switch (link) {
             case .sessionBackupManager:
                 pushControllerImpl?(sgSessionBackupManagerController(context: context, presentationData: presentationData))
+            case .appIcons:
+                pushControllerImpl?(themeSettingsController(context: context, focusOnItemTag: .icon))
             case .appBages:
                 if #available(iOS 14.0, *) {
                     pushControllerImpl?(sgAppBadgeSettingsController(context: context, presentationData: presentationData))

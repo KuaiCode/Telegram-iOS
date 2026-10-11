@@ -88,6 +88,7 @@ private enum ThemeSettingsControllerSection: Int32 {
     case chatPreview
     case nightMode
     case message
+    case icon
     case powerSaving
     case other
 }
@@ -97,6 +98,7 @@ public enum ThemeSettingsEntryTag: ItemListItemTag {
     case theme
     case tint
     case accentColor
+    case icon
     case powerSaving
     case stickersAndEmoji
     case animations
@@ -125,6 +127,8 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
     case autoNightTheme(PresentationTheme, String, String)
     case textSize(PresentationTheme, String, String)
     case bubbleSettings(PresentationTheme, String, String)
+    case iconHeader(PresentationTheme, String)
+    case iconItem(PresentationTheme, [PresentationAppIcon], String?)
     case powerSaving
     case stickersAndEmoji
     case otherHeader(PresentationTheme, String)
@@ -140,6 +144,8 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 return ThemeSettingsControllerSection.nightMode.rawValue
             case .textSize, .bubbleSettings:
                 return ThemeSettingsControllerSection.message.rawValue
+            case .iconHeader, .iconItem:
+                return ThemeSettingsControllerSection.icon.rawValue
             case .powerSaving, .stickersAndEmoji:
                 return ThemeSettingsControllerSection.message.rawValue
             case .otherHeader, .sendWithCmdEnter, .showNextMediaOnTap, .showNextMediaOnTapInfo:
@@ -173,6 +179,10 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
             return 10
         case .stickersAndEmoji:
             return 11
+        case .iconHeader:
+            return 12
+        case .iconItem:
+            return 13
         case .otherHeader:
             return 14
         case .sendWithCmdEnter:
@@ -242,6 +252,18 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 }
             case let .themeListHeader(lhsTheme, lhsText):
                 if case let .themeListHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+                    return true
+                } else {
+                    return false
+                }
+            case let .iconHeader(lhsTheme, lhsText):
+                if case let .iconHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+                    return true
+                } else {
+                    return false
+                }
+            case let .iconItem(lhsTheme, lhsIcons, lhsValue):
+                if case let .iconItem(rhsTheme, rhsIcons, rhsValue) = rhs, lhsTheme === rhsTheme, lhsIcons == rhsIcons, lhsValue == rhsValue {
                     return true
                 } else {
                     return false
@@ -342,6 +364,12 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 })
             case let .themeListHeader(_, text):
                 return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
+            case let .iconHeader(_, text):
+                return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
+            case let .iconItem(theme, icons, value):
+                return ThemeSettingsAppIconItem(theme: theme, systemStyle: .glass, sectionId: self.section, icons: icons, currentIconName: value, updated: { _ in
+                    // The current default icon follows iOS appearance without setting an alternate icon.
+                }, tag: ThemeSettingsEntryTag.icon)
             case .powerSaving:
                 return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, icon: nil, title: presentationData.strings.AppearanceSettings_Animations, label: "", labelStyle: .text, sectionId: self.section, style: .blocks, disclosureStyle: .arrow, action: {
                     arguments.openPowerSavingSettings()
@@ -373,6 +401,8 @@ private func themeSettingsControllerEntries(
     mediaSettings: MediaDisplaySettings,
     themeReference: PresentationThemeReference,
     availableThemes: [PresentationThemeReference],
+    availableAppIcons: [PresentationAppIcon],
+    currentAppIconName: String?,
     chatThemes: [PresentationThemeReference],
     animatedEmojiStickers: [String: [StickerPackItem]],
     accountPeer: EnginePeer?,
@@ -447,6 +477,11 @@ private func themeSettingsControllerEntries(
     entries.append(.powerSaving)
     entries.append(.stickersAndEmoji)
     
+    if !availableAppIcons.isEmpty {
+        entries.append(.iconHeader(presentationData.theme, strings.Appearance_AppIcon.uppercased()))
+        entries.append(.iconItem(presentationData.theme, availableAppIcons, currentAppIconName))
+    }
+
     entries.append(.otherHeader(presentationData.theme, strings.Appearance_Other.uppercased()))
     if DeviceModel.current.isIpad {
         entries.append(.sendWithCmdEnter(presentationData.theme, strings.Appearance_SendWithCmdEnter, chatSettings.sendWithCmdEnter))
@@ -482,6 +517,9 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
     
     let _ = context.engine.themes.wallpapers().start()
     
+    let availableAppIcons = context.sharedContext.applicationBindings.getAvailableAlternateIcons()
+    let currentAppIconName = context.sharedContext.applicationBindings.getAlternateIconName() ?? availableAppIcons.first(where: { $0.isDefault })?.name
+
     let cloudThemes = Promise<[TelegramTheme]>()
     let updatedCloudThemes = context.engine.themes.themes(accountManager: context.sharedContext.accountManager)
     cloudThemes.set(updatedCloudThemes)
@@ -1068,7 +1106,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
         chatThemes.insert(.builtin(.dayClassic), at: 0)
         
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(presentationData.strings.Appearance_Title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: themeSettingsControllerEntries(presentationData: presentationData, presentationThemeSettings: settings, chatSettings: chatSettings, mediaSettings: mediaSettings, themeReference: themeReference, availableThemes: availableThemes, chatThemes: chatThemes, animatedEmojiStickers: animatedEmojiStickers, accountPeer: accountPeer, nameColors: context.peerNameColors), style: .blocks, ensureVisibleItemTag: focusOnItemTag, animateChanges: false)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: themeSettingsControllerEntries(presentationData: presentationData, presentationThemeSettings: settings, chatSettings: chatSettings, mediaSettings: mediaSettings, themeReference: themeReference, availableThemes: availableThemes, availableAppIcons: availableAppIcons, currentAppIconName: currentAppIconName, chatThemes: chatThemes, animatedEmojiStickers: animatedEmojiStickers, accountPeer: accountPeer, nameColors: context.peerNameColors), style: .blocks, ensureVisibleItemTag: focusOnItemTag, animateChanges: false)
         
         return (controllerState, (listState, arguments))
     }

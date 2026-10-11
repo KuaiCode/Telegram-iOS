@@ -141,7 +141,6 @@ def check_icons():
         "Telegram/Telegram-iOS/AlternateIcons-iPad.plist",
         "Telegram/Telegram-iOS/AddAlternateIcons.sh",
         "Telegram/Telegram-iOS/Icons.xcassets/Shortcuts/AppIcon.imageset",
-        "submodules/SettingsUI/Sources/Themes/ThemeSettingsAppIconItem.swift",
         "submodules/TelegramUI/Images.xcassets/Premium/Icons",
         "Swiftgram/SGPayWall/Images.xcassets/ProDetailsIcons.imageset",
     ):
@@ -150,6 +149,35 @@ def check_icons():
     assert "WKCompanionAppBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER:base)" in watch_project
     assert f"PRODUCT_BUNDLE_IDENTIFIER: {BUNDLE_ID}.watchkitapp" in watch_project
     print("Airygram icon assets and build wiring checks passed.")
+
+
+def check_app_icon_picker():
+    settings = read("Swiftgram/SGSettingsUI/Sources/SGSettingsController.swift")
+    controller = read("submodules/SettingsUI/Sources/Themes/ThemeSettingsController.swift")
+    item = read("submodules/SettingsUI/Sources/Themes/ThemeSettingsAppIconItem.swift")
+    assert "import SettingsUI" in settings
+    assert "link: .appIcons, text: presentationData.strings.Appearance_AppIcon" in settings
+    assert "themeSettingsController(context: context, focusOnItemTag: .icon)" in settings
+    assert "entries.append(.iconHeader(" in controller and "entries.append(.iconItem(" in controller
+    assert "tag: ThemeSettingsEntryTag.icon" in controller
+    assert "applicationBindings.getAvailableAlternateIcons()" in controller
+    assert "applicationBindings.getAlternateIconName()" in controller
+    assert "availableAppIcons.first(where: { $0.isDefault })?.name" in controller
+    assert "icon.name == item.currentIconName" in item
+    assert "UIImage(named: icon.imageName, in: getAppBundle(), compatibleWith: nil)" in item
+    assert "accessibilityTraits = selected ? [.button, .selected] : [.button]" in item
+    # Restoring the picker must not override the desktop's automatic appearance.
+    for source in (settings, controller, item):
+        assert "requestSetAlternateIconName(" not in source
+        assert "setAlternateIconName(" not in source
+    build = ast.parse(read("Swiftgram/SGSettingsUI/BUILD"))
+    library = next(node for node in ast.walk(build)
+                   if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                   and node.func.id == "swift_library")
+    dependencies = ast.literal_eval(next(k.value for k in library.keywords if k.arg == "deps"))
+    assert "//submodules/SettingsUI:SettingsUI" in dependencies
+    assert '"Sources/**/*.swift"' in read("submodules/SettingsUI/BUILD")
+    print("Airygram icon picker, navigation, and automatic-appearance boundary checks passed.")
 
 
 def check_app_badge():
@@ -182,4 +210,5 @@ def check_app_badge():
 if __name__ == "__main__":
     check_branding()
     check_icons()
+    check_app_icon_picker()
     check_app_badge()

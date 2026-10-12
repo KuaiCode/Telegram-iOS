@@ -701,7 +701,13 @@ def build(bazel, arguments):
 
     bazel_command_line.set_split_swiftmodules(arguments.enableParallelSwiftmoduleGeneration)
 
+    if arguments.analyzeOnly:
+        bazel_command_line.common_build_args += ['--nobuild']
+
     bazel_command_line.invoke_build()
+
+    if arguments.analyzeOnly:
+        return
 
     if arguments.outputBuildArtifactsPath is not None:
         artifacts_path = os.path.abspath(arguments.outputBuildArtifactsPath)
@@ -1085,6 +1091,12 @@ if __name__ == '__main__':
         action='store_true',
         default=False,
         help='Enable sandbox.',
+    )
+    buildParser.add_argument(
+        '--analyzeOnly',
+        action='store_true',
+        default=False,
+        help='Load and analyze the complete build target without compiling or exporting artifacts.'
     )
     buildParser.add_argument(
         '--outputBuildArtifactsPath',

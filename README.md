@@ -22,9 +22,11 @@ Airygram's compilation steps follow the upstream app. The internal Bazel targets
 1. 将本次配置推送到你自己的 GitHub 仓库默认分支。在仓库 **Actions** 页面启用工作流（fork 首次使用可能需要手动启用）。
 2. 在 [my.telegram.org/apps](https://my.telegram.org/apps) 获取自己的 Telegram API 凭据。进入仓库 **Settings → Secrets and variables → Actions → New repository secret**，添加 `TELEGRAM_API_ID`（数字）和 `TELEGRAM_API_HASH`（32 位十六进制字符串）。缺少或格式错误会在编译前报错；不要使用上游示例凭据。
 3. 进入 **Actions → Build Airygram unsigned IPA → Run workflow**，选择包含配置的分支并运行。
-4. 成功后，在该次运行的 **Artifacts** 下载 `Airygram-unsigned-运行编号`，解压得到 `Airygram-unsigned.ipa`。调试符号单独存放在 `Airygram-DSYMs-运行编号`，仅排查崩溃时需要下载，并与同一运行编号的 IPA 配套保存。失败时查看步骤日志；进入编译阶段后还会上传 `Airygram-build-log-运行编号`。产物保留 14 天。
+4. 成功后，在该次运行的 **Artifacts** 下载 `Airygram-unsigned-运行编号`，解压得到 `Airygram-unsigned.ipa`。调试符号单独存放在 `Airygram-DSYMs-运行编号`，仅排查崩溃时需要下载，并与同一运行编号的 IPA 配套保存。失败时查看步骤日志；进入依赖分析阶段后还会上传 `Airygram-build-log-运行编号`，包含分析日志及后续编译日志（如已进入编译）。产物保留 14 天。
 
 工作流使用 macOS 26 ARM runner，严格按 `versions.json` 选择 Xcode（当前为 26.2）和 Bazel，并递归拉取 Git 子模块。GitHub 镜像若移除所需 Xcode，会明确失败，不会自动换版本。首次完整构建可能耗时较长；私有仓库注意账户的 Actions 用量和预算。
+
+完整编译前会解析 `Swiftgram/`、`Telegram/`、`submodules/` 内 Git 跟踪的 Swift 源码（不含 SPM 的 `Package.swift`），执行已有规则测试、警告参数和未签名补丁检查，再使用正式构建相同的配置、目标与构建号进行 Bazel `--nobuild` 依赖分析，覆盖主 App、扩展及其构建依赖。任一步骤失败会停止后续构建。语法检查与依赖分析不能保证完整编译成功：类型、API 可用性、编译警告、生成代码、链接和打包错误仍由正式构建验证；第三方及生成的 Swift 源码也由正式构建检查。
 
 CI 会应用 `build-system/patches/rules-apple-unsigned-profiles.patch`，让锁定版本的 `rules_apple` 在禁用签名时不再要求嵌入描述文件，覆盖主 App 和 iOS 扩展。补丁仅应用到 runner 的临时子模块副本，并检查签名/未签名及设备/模拟器组合；升级子模块后若补丁不适用，工作流会报错。
 
@@ -34,7 +36,7 @@ Bundle ID 保持 `dev.kuaicode.airygram`。`AAAAAAAAAA` 仅用于未签名构建
 
 API 凭据只写入 CI 的 `build-input/`（已被 Git 忽略），但会编译进应用；不要把 IPA 当作隐藏这些凭据的方式。工作流仅上传 IPA、调试符号和构建日志，不上传生成的配置文件。
 
-本地可运行 `python scripts/test_ci_unsigned_configuration.py` 检查配置生成与无效输入处理；真正的编译结果以 GitHub Actions 运行为准。
+本地可运行 `python scripts/test_ci_unsigned_configuration.py` 检查配置生成与无效输入处理，`python scripts/test_build_analysis.py` 检查分析模式的参数、失败传递和产物保护；真正的编译结果以 GitHub Actions 运行为准。
 
 # Telegram iOS Source Code Compilation Guide
 

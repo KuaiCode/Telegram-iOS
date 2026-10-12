@@ -43,6 +43,12 @@ jobs:
           test "$(uname -m)" = arm64
           df -h .
 
+      - name: Check Swift syntax across app sources
+        run: |
+          # Syntax parsing does not replace type checking with the actual build dependencies.
+          git ls-files -z -- 'Swiftgram/**/*.swift' 'Telegram/**/*.swift' 'submodules/**/*.swift' ':(exclude)**/Package.swift' |
+            xargs -0 -n 1 -P 3 xcrun swiftc -frontend -parse
+
       - name: Check re-signing container selection
         run: |
           swiftc Swiftgram/SGAppGroupIdentifier/Sources/AppGroupLocation.swift Tests/Resigning/main.swift -o "$RUNNER_TEMP/check-app-group"
@@ -54,9 +60,12 @@ jobs:
           "$RUNNER_TEMP/check-message-filter"
 
       - name: Check Swift warning configuration
-        run: python3 scripts/check_swift_warning_configuration.py
+        run: |
+          python3 scripts/check_swift_warning_configuration.py
+          python3 scripts/test_ci_unsigned_configuration.py
+          python3 scripts/test_build_analysis.py
 
-      - name: Build unsigned device IPA
+      - name: Prepare unsigned build
         run: |
           mkdir -p build/artifacts
           # The pinned rules_apple otherwise requires profiles even when signing is disabled.
@@ -70,7 +79,23 @@ jobs:
           build --features=disable_legacy_signing
           build --jobs=3
           EOF
-          BUILD_NUMBER=$(( $(cat build_number_offset) + GITHUB_RUN_NUMBER ))
+          echo "BUILD_NUMBER=$(( $(cat build_number_offset) + GITHUB_RUN_NUMBER ))" >> "$GITHUB_ENV"
+
+      - name: Analyze complete app build
+        run: |
+          python3 -u build-system/Make/Make.py \
+            build \
+            --target=//Telegram:Swiftgram \
+            --configurationPath=build-input/ci-unsigned-configuration.json \
+            --xcodeManagedCodesigning \
+            --configuration=release_arm64 \
+            --continueOnError \
+            --buildNumber="$BUILD_NUMBER" \
+            --analyzeOnly \
+            2>&1 | tee build/analysis.log
+
+      - name: Build unsigned device IPA
+        run: |
           python3 -u build-system/Make/Make.py \
             build \
             --target=//Telegram:Swiftgram \
@@ -108,6 +133,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Airygram-build-log-${{ github.run_number }}
-          path: build/build.log
+          path: |
+            build/analysis.log
+            build/build.log
           if-no-files-found: ignore
           retention-days: 14

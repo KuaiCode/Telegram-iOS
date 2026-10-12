@@ -451,6 +451,10 @@ extension ChatControllerImpl {
 
         let presentationData = self.presentationData
         
+        if let filterItem = self.messageFilterMenuItem() {
+            items.append(.separator)
+            items.append(filterItem)
+        }
         let contextController = makeContextController(presentationData: presentationData, source: .reference(HeaderContextReferenceContentSource(controller: self, sourceView: sourceView)), items: .single(ContextController.Items(content: .list(items))), gesture: gesture)
         self.presentInGlobalOverlay(contextController)
     }

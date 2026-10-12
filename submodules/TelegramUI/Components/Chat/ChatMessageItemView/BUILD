@@ -11,6 +11,8 @@ swift_library(
     ],
     deps = [
         "//Swiftgram/SGSimpleSettings:SGSimpleSettings",
+        "//Swiftgram/SGStrings:SGStrings",
+        "//submodules/InvisibleInkDustNode",
         "//submodules/AsyncDisplayKit",
         "//submodules/Display",
         "//submodules/TelegramCore",

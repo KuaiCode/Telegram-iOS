@@ -18,7 +18,7 @@ APP = UI + "Sources/AppDelegate.swift"
 SHARED = UI + "Sources/SharedAccountContext.swift"
 URLS = UI + "Sources/OpenUrl.swift"
 NOTIFICATIONS = "Telegram/NotificationService/Sources/NotificationService.swift"
-FILTER = UI + "Components/Chat/ChatMessageItemView/Sources/ChatMessageItemView.swift"
+FILTER = UI + "Sources/ChatMessageFilterState.swift"
 TOOLBARS = (
     "submodules/AttachmentTextInputPanelNode/Sources/AttachmentTextInputPanelNode.swift",
     UI + "Components/Chat/ChatTextInputPanelNode/Sources/ChatTextInputPanelNode.swift",

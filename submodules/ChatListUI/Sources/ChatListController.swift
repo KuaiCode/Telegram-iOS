@@ -3808,7 +3808,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
         self.dismiss()
     }
     
-    public static func openMoreMenu(context: AccountContext, peerId: EnginePeer.Id, sourceController: ViewController, isViewingAsTopics: Bool, sourceView: UIView, gesture: ContextGesture?) {
+    public static func openMoreMenu(context: AccountContext, peerId: EnginePeer.Id, sourceController: ViewController, isViewingAsTopics: Bool, sourceView: UIView, gesture: ContextGesture?, additionalItems: [ContextMenuItem] = []) {
         let _ = (context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId))
         |> deliverOnMainQueue).startStandalone(next: { peer in
             guard case let .channel(channel) = peer else {
@@ -3925,6 +3925,10 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
             }
             
             var needsSeparatorForCreateTopic = true
+            if !additionalItems.isEmpty {
+                items.append(.separator)
+                items.append(contentsOf: additionalItems)
+            }
             if let sourceController = sourceController as? ChatController {
                 items.append(.separator)
                 items.append(.action(ContextMenuActionItem(text: strings.Conversation_Search, icon: { theme in

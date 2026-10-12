@@ -67,13 +67,51 @@ assert(original.action(for: "这是推广消息") == .dim)
 assert(original.action(for: "") == nil)
 var strongest = original
 strongest.matchingMode = .strongest
-assert(strongest.action(for: "trusted sale") == .dim)
+assert(strongest.action(for: "trusted sale") == .allow)
 assert(strongest.action(for: "trusted") == .allow)
 assert(strongest.action(for: "ordinary") == nil)
 var reversed = original
 reversed.groups.reverse()
 assert(reversed.action(for: "trusted sale") == .dim)
 assert(try! reversed.normalized().groups.map(\.id) == [1, 2])
+
+// Every action, both strategies, equal-priority ordering, and album captions.
+let actionPriority: [SGMessageFilterAction] = [.dim, .mask, .collapse, .hide, .allow]
+for (priority, action) in actionPriority.enumerated() {
+    let group = SGMessageFilterGroup(name: action.rawValue, action: action, keywords: ["match"])
+    let configuration = SGMessageFilterConfiguration(groups: [group])
+    assert(configuration.match(for: ["match"]) == SGMessageFilterMatch(action: action, groupName: action.rawValue))
+    let encoded = try SGMessageFilterRuleFile.encode(configuration: configuration, format: .json)
+    assert(try! SGMessageFilterRuleFile.decode(data: encoded, format: .json) == configuration)
+    let text = try SGMessageFilterRuleFile.encode(configuration: configuration, format: .txt)
+    assert(text == Data("match".utf8))
+    assert(try! SGMessageFilterRuleFile.decode(data: text, format: .txt).groups[0].action == .dim)
+    for (otherPriority, otherAction) in actionPriority.enumerated() {
+        let other = SGMessageFilterGroup(id: 2, name: "Second", action: otherAction, keywords: ["match"])
+        var pair = SGMessageFilterConfiguration(groups: [group, other])
+        assert(pair.match(for: ["match"])?.groupName == group.name)
+        pair.matchingMode = .strongest
+        let expected = priority >= otherPriority ? group : other
+        assert(pair.match(for: ["match"]) == SGMessageFilterMatch(action: expected.action, groupName: expected.name))
+    }
+}
+let albumRules = SGMessageFilterConfiguration(matchingMode: .strongest, groups: [
+    SGMessageFilterGroup(id: 1, name: "Hidden ads", action: .hide, keywords: ["广告📢", "跨行\n关键词"]),
+    SGMessageFilterGroup(id: 2, name: "Trusted albums", action: .allow, keywords: ["trusted"])
+])
+assert(albumRules.match(for: ["ordinary", "广告📢"])?.action == .hide)
+assert(albumRules.match(for: ["广告📢", "trusted"])?.action == .allow)
+assert(albumRules.match(for: ["广告", "📢"]) == nil)
+assert(albumRules.match(for: ["跨行", "关键词"]) == nil)
+assert(albumRules.match(for: ["跨行\n关键词"])?.action == .hide)
+assert(albumRules.match(for: []) == nil)
+let combiningText = "e\u{301}"
+let unicodeRules = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Unicode", action: .mask, keywords: [combiningText, "👨‍👩‍👧‍👦"])])
+assert(unicodeRules.action(for: "prefix \(combiningText) suffix") == .mask)
+assert(unicodeRules.action(for: "家庭👨‍👩‍👧‍👦") == .mask)
+var orderedAlbumRules = albumRules
+orderedAlbumRules.matchingMode = .firstMatch
+assert(orderedAlbumRules.match(for: ["trusted", "广告📢"])?.groupName == "Hidden ads")
 
 let json = try SGMessageFilterRuleFile.encode(configuration: original, format: .json)
 assert(try! SGMessageFilterRuleFile.decode(data: json, format: .json) == original)

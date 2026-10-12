@@ -1,4 +1,6 @@
 import SGSimpleSettings
+import SGStrings
+import InvisibleInkDustNode
 import Foundation
 import UIKit
 import AsyncDisplayKit
@@ -666,15 +668,22 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     public var playedEffectAnimation: Bool = false
     public var effectAnimationNodes: [ChatMessageTransitionNode.DecorationItemNode] = []
     
-    private var messageFilterObserver: NSObjectProtocol?
+    private var filterCover: HighlightTrackingButtonNode?
+    private var filterDust: MediaDustNode?
+    private var filterCollapseButton: HighlightTrackingButtonNode?
+    private var filterDisabledGestures: [UIGestureRecognizer] = []
+    private var filterAccessibilityElements: [Any]?
+    private var filterHadAccessibilityOverride = false
+
+    public var isMessageFilterMasked: Bool {
+        guard let attributes = self.item?.content.firstMessageAttributes else { return false }
+        return attributes.messageFilterMatch?.action == .mask && !attributes.messageFilterRevealed
+    }
     
     public required init(rotated: Bool) {
         super.init(layerBacked: false, rotated: rotated)
         if rotated {
             self.transform = CATransform3DMakeRotation(CGFloat.pi, 0.0, 0.0, 1.0)
-        }
-        self.messageFilterObserver = NotificationCenter.default.addObserver(forName: SGMessageFilterStore.didChange, object: SGSimpleSettings.shared.messageFilter, queue: .main) { [weak self] _ in
-            self?.updateMessageFilter()
         }
     }
 
@@ -684,9 +693,6 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     
     deinit {
         self.fetchEffectDisposable?.dispose()
-        if let messageFilterObserver = self.messageFilterObserver {
-            NotificationCenter.default.removeObserver(messageFilterObserver)
-        }
     }
     
     override open func reuse() {
@@ -695,22 +701,142 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
         self.item = nil
         self.frame = CGRect()
         self.alpha = 1.0
+        self.removeMessageFilterCover()
+        self.filterCollapseButton?.removeFromSupernode()
+        self.filterCollapseButton = nil
     }
     
     open func setupItem(_ item: ChatMessageItem, synchronousLoad: Bool) {
+        if let previous = self.item, self.filterCover != nil,
+           previous.message.id != item.message.id || previous.message.stableVersion != item.message.stableVersion || previous.content.firstMessageAttributes.messageFilterGeneration != item.content.firstMessageAttributes.messageFilterGeneration || previous.content.firstMessageAttributes.messageFilterMatch != item.content.firstMessageAttributes.messageFilterMatch {
+            self.removeMessageFilterCover()
+        }
         self.item = item
-        self.updateMessageFilter()
     }
 
-    private func updateMessageFilter() {
-        var alpha: CGFloat = 1.0
-        let configuration = SGSimpleSettings.shared.messageFilter.configuration
-        if !configuration.groups.isEmpty && (SGFeaturePolicy.isFreeEdition || SGSimpleSettings.shared.ephemeralStatus > 1) {
-            if let item = self.item, item.message.adAttribute == nil, item.message.effectivelyIncoming(item.context.account.peerId), configuration.action(for: item.message.text) == .dim {
-                alpha = item.presentationData.theme.theme.overallDarkAppearance ? 0.2 : 0.3
-            }
+    public static func messageFilterLayout(_ layout: ListViewItemNodeLayout, item: ChatMessageItem) -> ListViewItemNodeLayout {
+        let attributes = item.content.firstMessageAttributes
+        if attributes.messageFilterMatch?.action == .collapse && attributes.messageFilterRevealed {
+            return ListViewItemNodeLayout(contentSize: CGSize(width: layout.contentSize.width, height: layout.contentSize.height + 44.0), insets: layout.insets)
         }
-        self.alpha = alpha
+        return layout
+    }
+
+    private func removeMessageFilterCover() {
+        self.filterCover?.removeFromSupernode()
+        self.filterCover = nil
+        self.filterDust = nil
+        for recognizer in self.filterDisabledGestures {
+            recognizer.isEnabled = true
+        }
+        self.filterDisabledGestures.removeAll()
+        if self.filterHadAccessibilityOverride {
+            self.view.accessibilityElements = self.filterAccessibilityElements
+            self.filterAccessibilityElements = nil
+            self.filterHadAccessibilityOverride = false
+        }
+    }
+
+    // Called after the renderer applies its layout, including node reuse and size changes.
+    public func updateMessageFilterPresentation(contentSize: CGSize) {
+        guard let item = self.item else { return }
+        let attributes = item.content.firstMessageAttributes
+        let theme = item.presentationData.theme.theme
+        let language = item.presentationData.strings.baseLanguageCode
+        self.alpha = attributes.messageFilterMatch?.action == .dim && !attributes.messageFilterRevealed ? (theme.overallDarkAppearance ? 0.2 : 0.3) : 1.0
+
+        if self.isMessageFilterMasked {
+            let cover: HighlightTrackingButtonNode
+            let dust: MediaDustNode
+            if let currentCover = self.filterCover, let currentDust = self.filterDust {
+                cover = currentCover
+                dust = currentDust
+            } else {
+                cover = HighlightTrackingButtonNode()
+                dust = MediaDustNode(enableAnimations: item.context.sharedContext.energyUsageSettings.fullTranslucency)
+                dust.isUserInteractionEnabled = false
+                let messageId = item.message.id
+                dust.revealed = { [weak self, weak dust] in
+                    guard let self, let dust, self.filterDust === dust, let item = self.item, item.message.id == messageId else { return }
+                    item.controllerInteraction.setMessageFilterRevealed?(item.message.id, true)
+                }
+                cover.addTarget(self, action: #selector(self.revealMessageFilter), forControlEvents: .touchUpInside)
+                cover.addSubnode(dust)
+                cover.clipsToBounds = true
+                cover.isAccessibilityElement = true
+                cover.accessibilityTraits = .button
+                self.filterCover = cover
+                self.filterDust = dust
+                self.addSubnode(cover)
+            }
+            // Headers (including avatars and dates) are separate list nodes.
+            let frame = self.messageFilterContentFrame()
+            cover.frame = frame
+            cover.backgroundColor = theme.list.itemBlocksBackgroundColor.withAlphaComponent(1.0)
+            cover.accessibilityLabel = "MessageFilter.Masked".i18n(language)
+            dust.frame = CGRect(origin: .zero, size: frame.size)
+            dust.update(size: frame.size, color: theme.list.itemPrimaryTextColor, transition: .immediate)
+            self.view.bringSubviewToFront(cover.view)
+            for recognizer in self.view.gestureRecognizers ?? [] where recognizer.isEnabled {
+                recognizer.isEnabled = false
+                self.filterDisabledGestures.append(recognizer)
+            }
+            if !self.filterHadAccessibilityOverride {
+                self.filterAccessibilityElements = self.view.accessibilityElements
+                self.filterHadAccessibilityOverride = true
+            }
+            self.view.accessibilityElements = [cover.view]
+        } else {
+            self.removeMessageFilterCover()
+        }
+
+        if attributes.messageFilterMatch?.action == .collapse && attributes.messageFilterRevealed {
+            let button: HighlightTrackingButtonNode
+            if let current = self.filterCollapseButton {
+                button = current
+            } else {
+                button = HighlightTrackingButtonNode()
+                button.addTarget(self, action: #selector(self.collapseMessageFilter), forControlEvents: .touchUpInside)
+                button.isAccessibilityElement = true
+                button.accessibilityTraits = .button
+                self.filterCollapseButton = button
+                self.addSubnode(button)
+            }
+            let title = "MessageFilter.CollapseAgain".i18n(language)
+            button.setAttributedTitle(NSAttributedString(string: title, font: Font.regular(item.presentationData.fontSize.baseDisplaySize), textColor: theme.list.itemAccentColor), for: .normal)
+            button.accessibilityLabel = title
+            button.backgroundColor = theme.list.itemBlocksBackgroundColor
+            button.cornerRadius = 10.0
+            button.frame = CGRect(x: self.safeInsets.left + 48.0, y: contentSize.height + 2.0, width: max(44.0, contentSize.width - self.safeInsets.left - self.safeInsets.right - 64.0), height: 40.0)
+            self.view.bringSubviewToFront(button.view)
+        } else {
+            self.filterCollapseButton?.removeFromSupernode()
+            self.filterCollapseButton = nil
+        }
+    }
+
+    open func messageFilterContentFrame() -> CGRect {
+        return self.contentFrame()
+    }
+
+    public func messageFilterHitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if let cover = self.filterCover, cover.frame.contains(point) {
+            return cover.view
+        }
+        if let button = self.filterCollapseButton, button.frame.contains(point) {
+            return button.view
+        }
+        return nil
+    }
+
+    @objc private func revealMessageFilter() {
+        guard let dust = self.filterDust else { return }
+        dust.tap(at: CGPoint(x: dust.bounds.midX, y: dust.bounds.midY))
+    }
+
+    @objc private func collapseMessageFilter() {
+        guard let item = self.item else { return }
+        item.controllerInteraction.setMessageFilterRevealed?(item.message.id, false)
     }
     
     open func updateAccessibilityData(_ accessibilityData: ChatMessageAccessibilityData) {
@@ -722,9 +848,11 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
             let doLayout = self.asyncLayout()
             let merged = item.mergedWithItems(top: previousItem, bottom: nextItem, isRotated: item.controllerInteraction.chatIsRotated)
             let (layout, apply) = doLayout(item, params, merged.top, merged.bottom, merged.dateAtBottom)
-            self.contentSize = layout.contentSize
-            self.insets = layout.insets
+            let filteredLayout = Self.messageFilterLayout(layout, item: item)
+            self.contentSize = filteredLayout.contentSize
+            self.insets = filteredLayout.insets
             apply(.None, ListViewItemApply(isOnScreen: false), false)
+            self.updateMessageFilterPresentation(contentSize: layout.contentSize)
         }
     }
     

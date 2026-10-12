@@ -279,6 +279,9 @@ public class ChatMessageAnimatedStickerItemNode: ChatMessageItemView {
         let recognizer = TapLongTapOrDoubleTapGestureRecognizer(target: self, action: #selector(self.tapLongTapOrDoubleTapGesture(_:)))
         recognizer.tapActionAtPoint = { [weak self] point in
             if let strongSelf = self {
+                if strongSelf.messageFilterHitTest(point, with: nil) != nil {
+                    return .fail
+                }
                 if let shareButtonNode = strongSelf.shareButtonNode, shareButtonNode.frame.contains(point) {
                     return .fail
                 }
@@ -2795,6 +2798,9 @@ public class ChatMessageAnimatedStickerItemNode: ChatMessageItemView {
     }
     
     override public func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if let result = self.messageFilterHitTest(point, with: event) {
+            return result
+        }
         if let shareButtonNode = self.shareButtonNode, shareButtonNode.frame.contains(point) {
             return shareButtonNode.view.hitTest(self.view.convert(point, to: shareButtonNode.view), with: event)
         }
@@ -3262,7 +3268,16 @@ public class ChatMessageAnimatedStickerItemNode: ChatMessageItemView {
     override public func contentFrame() -> CGRect {
         return self.imageNode.frame
     }
-    
+
+    override public func messageFilterContentFrame() -> CGRect {
+        var frame = self.contentFrame()
+        let nodes: [ASDisplayNode?] = [self.textNode.textNode, self.labelNode.textNode, self.viaBotNode, self.dateAndStatusNode, self.threadInfoNode, self.replyInfoNode, self.forwardInfoNode, self.actionButtonsNode, self.reactionButtonsNode, self.shareButtonNode, self.suggestedPostInfoNode]
+        for node in nodes.compactMap({ $0 }) where !node.isHidden {
+            frame = frame.union(node.convert(node.bounds, to: self))
+        }
+        return frame
+    }
+
     override public func makeContentSnapshot() -> (UIImage, CGRect)? {
         UIGraphicsBeginImageContextWithOptions(self.imageNode.view.bounds.size, false, 0.0)
         let context = UIGraphicsGetCurrentContext()!

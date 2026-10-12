@@ -3,6 +3,43 @@ import Foundation
 public enum SGMessageFilterAction: String, Codable, CaseIterable {
     case dim
     case allow
+    case collapse
+    case hide
+    case mask
+
+    public var localizationKey: String {
+        switch self {
+        case .dim: return "MessageFilter.Action.Dim"
+        case .allow: return "MessageFilter.Action.Allow"
+        case .collapse: return "MessageFilter.Action.Collapse"
+        case .hide: return "MessageFilter.Action.Hide"
+        case .mask: return "MessageFilter.Action.Mask"
+        }
+    }
+
+    private var priority: Int {
+        switch self {
+        case .allow: return 4
+        case .hide: return 3
+        case .collapse: return 2
+        case .mask: return 1
+        case .dim: return 0
+        }
+    }
+
+    fileprivate func takesPriority(over other: SGMessageFilterAction) -> Bool {
+        return self.priority > other.priority
+    }
+}
+
+public struct SGMessageFilterMatch: Equatable {
+    public let action: SGMessageFilterAction
+    public let groupName: String
+
+    public init(action: SGMessageFilterAction, groupName: String) {
+        self.action = action
+        self.groupName = groupName
+    }
 }
 
 public enum SGMessageFilterMatchingMode: String, Codable, CaseIterable {
@@ -56,12 +93,21 @@ public struct SGMessageFilterConfiguration: Codable, Equatable {
     }
 
     public func action(for text: String) -> SGMessageFilterAction? {
-        var result: SGMessageFilterAction?
-        for group in groups where group.keywords.contains(where: { !$0.isEmpty && text.contains($0) }) {
-            if matchingMode == .firstMatch || group.action == .dim {
-                return group.action
+        return self.match(for: [text])?.action
+    }
+
+    public func match(for texts: [String]) -> SGMessageFilterMatch? {
+        var result: SGMessageFilterMatch?
+        for group in groups where group.keywords.contains(where: { keyword in
+            !keyword.isEmpty && texts.contains(where: { $0.contains(keyword) })
+        }) {
+            let match = SGMessageFilterMatch(action: group.action, groupName: group.name)
+            if matchingMode == .firstMatch {
+                return match
             }
-            result = group.action
+            if result == nil || group.action.takesPriority(over: result!.action) {
+                result = match
+            }
         }
         return result
     }

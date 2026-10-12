@@ -3,6 +3,7 @@ import TelegramPresentationData
 import MergeLists
 import TemporaryCachedPeerDataManager
 import AccountContext
+import SGSimpleSettings
 
 public enum ChatMessageEntryContentType {
     case generic
@@ -11,6 +12,12 @@ public enum ChatMessageEntryContentType {
 }
 
 public struct ChatMessageEntryAttributes: Equatable {
+    public var messageFilterMatch: SGMessageFilterMatch? = nil
+    public var messageFilterRevealed: Bool = false
+    public var messageFilterGeneration: Int = 0
+    public var isMessageFilterCollapsed: Bool {
+        return self.messageFilterMatch?.action == .collapse && !self.messageFilterRevealed
+    }
     public var rank: CachedChannelAdminRank?
     public var isContact: Bool
     public var contentTypeHint: ChatMessageEntryContentType
@@ -62,6 +69,9 @@ public enum ChatHistoryEntry: Identifiable, Comparable {
     public var stableId: UInt64 {
         switch self {
         case let .MessageEntry(message, _, _, _, _, attributes):
+            if attributes.isMessageFilterCollapsed {
+                return UInt64(message.stableId) | (UInt64(8) << 40)
+            }
             let type: UInt64
             switch attributes.contentTypeHint {
             case .generic:
@@ -72,7 +82,10 @@ public enum ChatHistoryEntry: Identifiable, Comparable {
                 type = 4
             }
             return UInt64(message.stableId) | ((type << 40))
-        case let .MessageGroupEntry(groupInfo, _, _):
+        case let .MessageGroupEntry(groupInfo, messages, _):
+            if messages.first?.3.isMessageFilterCollapsed == true {
+                return UInt64(bitPattern: groupInfo) ^ (UInt64(1) << 63)
+            }
             return UInt64(bitPattern: groupInfo) | ((UInt64(2) << 40))
         case .UnreadEntry:
             return UInt64(4) << 40

@@ -1307,6 +1307,9 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
         let recognizer = TapLongTapOrDoubleTapGestureRecognizer(target: self, action: #selector(self.tapLongTapOrDoubleTapGesture(_:)))
         recognizer.tapActionAtPoint = { [weak self] point in
             if let strongSelf = self {
+                if strongSelf.messageFilterHitTest(point, with: nil) != nil {
+                    return .fail
+                }
                 if let item = strongSelf.item, let subject = item.associatedData.subject, case let .messageOptions(_, _, info) = subject {
                     if case let .link(link) = info {
                         let options = Atomic<ChatControllerSubject.LinkOptions?>(value: nil)
@@ -6647,6 +6650,9 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
     }
     
     override public func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if let result = self.messageFilterHitTest(point, with: event) {
+            return result
+        }
         if !self.bounds.contains(point) {
             return nil
         }
@@ -7771,6 +7777,15 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
     
     override public func contentFrame() -> CGRect {
         return self.backgroundNode.frame
+    }
+
+    override public func messageFilterContentFrame() -> CGRect {
+        var frame = self.contentFrame()
+        let nodes: [ASDisplayNode?] = [self.actionButtonsNode, self.reactionButtonsNode, self.shareButtonNode, self.summarizeButtonNode, self.quickTranslateButtonNode, self.threadInfoNode, self.suggestedPostInfoNode]
+        for node in nodes.compactMap({ $0 }) where !node.isHidden {
+            frame = frame.union(node.convert(node.bounds, to: self))
+        }
+        return frame
     }
     
     override public func makeContentSnapshot() -> (UIImage, CGRect)? {

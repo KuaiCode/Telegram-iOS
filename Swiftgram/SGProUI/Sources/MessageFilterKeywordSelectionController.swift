@@ -233,7 +233,7 @@ private final class MessageFilterKeywordSelectionNode: ActionSheetItemNode {
         let group = configuration.groups.first(where: { $0.name == targetGroupName })
         let isDefaultGroup = targetGroupName == nil && configuration.groups.isEmpty
         let name = group?.name ?? (isDefaultGroup ? "MessageFilter.Selection.DefaultGroup".i18n(lang) : "—")
-        let action = (group?.action == .allow ? "MessageFilter.Action.Allow" : "MessageFilter.Action.Dim").i18n(lang)
+        let action = (group?.action ?? .dim).localizationKey.i18n(lang)
         let actionLabel = group != nil || isDefaultGroup ? " · " + action : ""
         groupButton.setTitle("MessageFilter.Selection.Group".i18n(lang) + ": " + name + actionLabel + "  ›", for: .normal)
     }
@@ -264,7 +264,7 @@ private final class MessageFilterKeywordSelectionNode: ActionSheetItemNode {
         isPresentingGroupPicker = true
         let picker = ActionSheetController(presentationData: presentationData)
         let items: [ActionSheetItem] = groups.map { group in
-            let action = (group.action == .dim ? "MessageFilter.Action.Dim" : "MessageFilter.Action.Allow").i18n(lang)
+            let action = group.action.localizationKey.i18n(lang)
             return ActionSheetButtonItem(title: group.name + " · " + action, action: { [weak self, weak picker] in
                 self?.targetGroupName = group.name
                 self?.statusLabel.text = nil

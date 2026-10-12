@@ -817,6 +817,10 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         
         super.init()
 
+        self.controllerInteraction.setMessageFilterRevealed = { [weak self] id, value in
+            self?.historyNode.setMessageFilterRevealed(id, value)
+        }
+
         getContentAreaInScreenSpaceImpl = { [weak self] in
             guard let strongSelf = self else {
                 return CGRect()

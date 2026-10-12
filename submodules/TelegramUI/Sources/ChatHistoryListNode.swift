@@ -1,4 +1,5 @@
 import SGSimpleSettings
+import SGStrings
 import Foundation
 import UIKit
 import SwiftSignalKit
@@ -80,6 +81,7 @@ enum ChatHistoryViewUpdate {
 }
 
 struct ChatHistoryView {
+    var hasHiddenMessages: Bool = false
     let originalView: MessageHistoryView
     let filteredEntries: [ChatHistoryEntry]
     let associatedData: ChatMessageItemAssociatedData
@@ -548,6 +550,20 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     private var chatHistoryLocationValue: ChatHistoryLocationInput? {
         didSet {
             if let chatHistoryLocationValue = self.chatHistoryLocationValue, chatHistoryLocationValue != oldValue {
+                if self.messageFilterEnabled {
+                    switch chatHistoryLocationValue.content {
+                    case let .InitialSearch(subject, _, _, _):
+                        if case let .id(id) = subject.location {
+                            self.messageFilterState.setRevealed(id, true)
+                        }
+                    case let .Scroll(subject, _, _, _, _, highlight, _) where highlight:
+                        if case let .message(index) = subject.index {
+                            self.messageFilterState.setRevealed(index.id, true)
+                        }
+                    default:
+                        break
+                    }
+                }
                 self.chatHistoryLocationPromise.set(chatHistoryLocationValue)
             }
         }
@@ -648,6 +664,104 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     }
     
     private let pendingRemovedMessagesPromise = ValuePromise<Set<MessageId>>(Set())
+    private let messageFilterState = ChatMessageFilterState()
+    private let messageFilterRevision = ValuePromise<Int>(0)
+    private var messageFilterRevisionValue = 0
+    private var messageFilterObserver: NSObjectProtocol?
+    private var messageFilterEnabled = false
+    private var messageFilterEmptyView: UIStackView?
+
+    var showsFilteredMessages: Bool { self.messageFilterState.showAll }
+    var canToggleMessageFilter: Bool { self.messageFilterEnabled && self.tag == nil }
+
+    func toggleFilteredMessages() {
+        self.messageFilterState.toggleShowAll()
+        self.refreshMessageFilter()
+    }
+
+    func revealFilteredMessage(_ id: MessageId) {
+        self.setMessageFilterRevealed(id, true)
+    }
+
+    func setMessageFilterRevealed(_ id: MessageId, _ value: Bool) {
+        guard self.canToggleMessageFilter else { return }
+        self.messageFilterState.setRevealed(id, value)
+        self.refreshMessageFilter()
+    }
+
+    private func refreshMessageFilter() {
+        self.messageFilterRevisionValue += 1
+        self.messageFilterRevision.set(self.messageFilterRevisionValue)
+    }
+
+    private func updateMessageFilterEmptyView() {
+        self.messageFilterEmptyView?.removeFromSuperview()
+        self.messageFilterEmptyView = nil
+        guard let historyView = self.historyView, historyView.hasHiddenMessages, historyView.filteredEntries.isEmpty else { return }
+        let theme = self.currentPresentationData.theme.theme
+        let language = self.currentPresentationData.strings.baseLanguageCode
+        let label = UILabel()
+        label.text = "MessageFilter.Empty".i18n(language)
+        label.textColor = theme.list.itemPrimaryTextColor
+        label.font = UIFont.preferredFont(forTextStyle: .body)
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        let showButton = UIButton(type: .system)
+        showButton.setTitle("MessageFilter.ShowFiltered".i18n(language), for: .normal)
+        showButton.addTarget(self, action: #selector(self.showFilteredMessagesFromEmptyView), for: .touchUpInside)
+        showButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44.0).isActive = true
+        let stack = UIStackView(arrangedSubviews: [label, showButton])
+        if historyView.originalView.earlierId != nil || historyView.originalView.holeEarlier {
+            let loadButton = UIButton(type: .system)
+            loadButton.setTitle("MessageFilter.LoadMore".i18n(language), for: .normal)
+            loadButton.addTarget(self, action: #selector(self.loadMoreFilteredHistory), for: .touchUpInside)
+            loadButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44.0).isActive = true
+            stack.addArrangedSubview(loadButton)
+        }
+        if historyView.originalView.laterId != nil || historyView.originalView.holeLater {
+            let loadButton = UIButton(type: .system)
+            loadButton.setTitle("MessageFilter.LoadNewer".i18n(language), for: .normal)
+            loadButton.addTarget(self, action: #selector(self.loadNewerFilteredHistory), for: .touchUpInside)
+            loadButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44.0).isActive = true
+            stack.addArrangedSubview(loadButton)
+        }
+        stack.axis = .vertical
+        stack.spacing = 8.0
+        stack.isLayoutMarginsRelativeArrangement = true
+        stack.layoutMargins = UIEdgeInsets(top: 16.0, left: 16.0, bottom: 12.0, right: 16.0)
+        stack.backgroundColor = theme.list.itemBlocksBackgroundColor
+        stack.tintColor = theme.list.itemAccentColor
+        stack.layer.cornerRadius = 12.0
+        if self.rotated { stack.transform = CGAffineTransform(rotationAngle: .pi) }
+        self.view.addSubview(stack)
+        self.messageFilterEmptyView = stack
+        self.layoutMessageFilterEmptyView()
+    }
+
+    private func layoutMessageFilterEmptyView() {
+        guard let stack = self.messageFilterEmptyView else { return }
+        let width = max(100.0, min(360.0, self.listView.bounds.width - 48.0))
+        let size = stack.systemLayoutSizeFitting(CGSize(width: width, height: 0.0), withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
+        stack.bounds = CGRect(origin: .zero, size: size)
+        stack.center = CGPoint(x: self.listView.bounds.midX, y: (self.insets.top + self.listView.bounds.height - self.insets.bottom) / 2.0)
+    }
+
+    @objc private func showFilteredMessagesFromEmptyView() {
+        if !self.showsFilteredMessages { self.toggleFilteredMessages() }
+    }
+
+    @objc private func loadMoreFilteredHistory() {
+        self.loadFilteredHistory(at: self.historyView?.originalView.entries.first?.message.index)
+    }
+
+    @objc private func loadNewerFilteredHistory() {
+        self.loadFilteredHistory(at: self.historyView?.originalView.entries.last?.message.index)
+    }
+
+    private func loadFilteredHistory(at index: MessageIndex?) {
+        guard let index else { return }
+        self.chatHistoryLocationValue = ChatHistoryLocationInput(content: .Navigation(index: .message(index), anchorIndex: .message(index), count: historyMessageCount, highlight: false), id: self.takeNextHistoryLocationId())
+    }
     var pendingRemovedMessages: Set<MessageId> = Set() {
         didSet {
             if self.pendingRemovedMessages != oldValue {
@@ -935,6 +1049,30 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         self.listView = ListViewImpl()
 
         super.init()
+
+        self.messageFilterEnabled = mode == .bubbles && !isChatPreview
+        if case .customChatContents = chatLocation {
+            self.messageFilterEnabled = false
+        }
+        if case .customChatContents = subject {
+            self.messageFilterEnabled = false
+        }
+        if case .messageOptions = subject {
+            self.messageFilterEnabled = false
+        }
+        if case .pinnedMessages = subject {
+            self.messageFilterEnabled = false
+        }
+        if case .scheduledMessages = subject {
+            self.messageFilterEnabled = false
+        }
+        if self.messageFilterEnabled {
+            self.messageFilterObserver = NotificationCenter.default.addObserver(forName: SGMessageFilterStore.didChange, object: SGSimpleSettings.shared.messageFilter, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                self.messageFilterState.configurationChanged()
+                self.refreshMessageFilter()
+            }
+        }
         
         // Force-load this node's view in the initializer. ChatHistoryListNodeImpl used to *be* the
         // ListViewImpl, whose view was loaded eagerly during init, so `self.isNodeLoaded` was always
@@ -1053,6 +1191,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             switch messageSubject {
             case let .id(id):
                 initialSearchLocation = .id(id)
+                self.messageFilterState.setRevealed(id, true)
             case let .timestamp(timestamp):
                 if let peerId = self.chatLocation.peerId {
                     initialSearchLocation = .index(MessageIndex(id: MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: 1), timestamp: timestamp))
@@ -1286,6 +1425,9 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     }
     
     deinit {
+        if let messageFilterObserver = self.messageFilterObserver {
+            NotificationCenter.default.removeObserver(messageFilterObserver)
+        }
         self.historyDisposable.dispose()
         self.readHistoryDisposable.dispose()
         self.interactiveReadActionDisposable?.dispose()
@@ -1827,7 +1969,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             self.currentlyPlayingMessageIdPromise.get(),
             self.scrollToMessageIdPromise.get(),
             self.chatHasBotsPromise.get(),
-            self.allAdMessagesPromise.get()
+            combineLatest(self.allAdMessagesPromise.get(), self.messageFilterRevision.get())
         )
         
         let contentSettings = self.context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.ContentSettings())
@@ -1941,7 +2083,8 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             deviceContactsNumbers |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_deviceContactsNumbers"),
             contentSettings |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_contentSettings")
         ) |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_firstChatHistoryTransition")).startStrict(next: { [weak self] sharedData, /* MARK: Swiftgram */ update, chatPresentationData, selectedMessages, updatingMedia, networkType, preferredStoryHighQuality, animatedEmojiStickers, additionalAnimatedEmojiStickers, customChannelDiscussionReadState, customThreadOutgoingReadState, availableReactions, availableMessageEffects, savedMessageTags, defaultReaction, accountPeer, accountCountry, suggestAudioTranscription, promises, topicAuthorId, translationState, maxReadStoryId, recommendedChannels, audioTranscriptionTrial, chatThemes, deviceContactsNumbers, contentSettings in
-            let (historyAppearsCleared, pendingUnpinnedAllMessages, pendingRemovedMessages, currentlyPlayingMessageIdAndType, scrollToMessageId, chatHasBots, allAdMessages) = promises
+            let (historyAppearsCleared, pendingUnpinnedAllMessages, pendingRemovedMessages, currentlyPlayingMessageIdAndType, scrollToMessageId, chatHasBots, adMessagesAndFilterRevision) = promises
+            let allAdMessages = adMessagesAndFilterRevision.0
             
             if measure_isFirstTime {
                 measure_isFirstTime = false
@@ -2255,10 +2398,11 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                     adMessage: allAdMessages.fixed,
                     dynamicAdMessages: allAdMessages.opportunistic,
                     isMusicPlaylist: isMusicPlaylist,
-                    pinToTopStableId: pinToTopStableId
+                    pinToTopStableId: pinToTopStableId,
+                    messageFilter: self?.canToggleMessageFilter == true ? self?.messageFilterState : nil
                 )
                 let lastHeaderId = filteredEntries.last.flatMap { listMessageDateHeaderId(timestamp: $0.index.timestamp) } ?? 0
-                let processedView = ChatHistoryView(originalView: view, filteredEntries: filteredEntries, associatedData: associatedData, lastHeaderId: lastHeaderId, id: id, locationInput: update.2, ignoreMessagesInTimestampRange: update.3, ignoreMessageIds: update.4)
+                let processedView = ChatHistoryView(hasHiddenMessages: self?.canToggleMessageFilter == true && self?.messageFilterState.hasHiddenMessages == true, originalView: view, filteredEntries: filteredEntries, associatedData: associatedData, lastHeaderId: lastHeaderId, id: id, locationInput: update.2, ignoreMessagesInTimestampRange: update.3, ignoreMessageIds: update.4)
                 let previousValueAndVersion = previousView.swap((processedView, update.1, selectedMessages, allAdMessages.version))
                 let _ = chatHistoryEntriesForViewState.swap(updatedChatHistoryEntriesForViewState)
                 let previous = previousValueAndVersion?.0
@@ -3443,6 +3587,8 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         })
         
         if let loaded = displayedRange.visibleRange, let firstEntry = historyView.filteredEntries.first, let lastEntry = historyView.filteredEntries.last {
+            let firstHistoryIndex = historyView.hasHiddenMessages ? (historyView.originalView.entries.first?.message.index ?? firstEntry.index) : firstEntry.index
+            let lastHistoryIndex = historyView.hasHiddenMessages ? (historyView.originalView.entries.last?.message.index ?? lastEntry.index) : lastEntry.index
             var mathesFirst = false
             if loaded.firstIndex <= 5 {
                 var firstHasGroups = false
@@ -3484,7 +3630,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             }
             
             if mathesFirst && historyView.originalView.laterId != nil {
-                let locationInput: ChatHistoryLocation = .Navigation(index: .message(lastEntry.index), anchorIndex: .message(lastEntry.index), count: historyMessageCount, highlight: false)
+                let locationInput: ChatHistoryLocation = .Navigation(index: .message(lastHistoryIndex), anchorIndex: .message(lastHistoryIndex), count: historyMessageCount, highlight: false)
                 if self.chatHistoryLocationValue?.content != locationInput {
                     self.chatHistoryLocationValue = ChatHistoryLocationInput(content: locationInput, id: self.takeNextHistoryLocationId())
                 }
@@ -3493,7 +3639,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                     self.chatHistoryLocationValue = ChatHistoryLocationInput(content: .Navigation(index: .upperBound, anchorIndex: .upperBound, count: historyMessageCount, highlight: false), id: self.takeNextHistoryLocationId())
                 }
             } else if mathesLast {
-                let locationInput: ChatHistoryLocation = .Navigation(index: .message(firstEntry.index), anchorIndex: .message(firstEntry.index), count: historyMessageCount, highlight: false)
+                let locationInput: ChatHistoryLocation = .Navigation(index: .message(firstHistoryIndex), anchorIndex: .message(firstHistoryIndex), count: historyMessageCount, highlight: false)
                 if historyView.originalView.earlierId != nil {
                     if self.chatHistoryLocationValue?.content != locationInput {
                         self.chatHistoryLocationValue = ChatHistoryLocationInput(content: locationInput, id: self.takeNextHistoryLocationId())
@@ -3669,6 +3815,9 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     }
     
     public func scrollToMessage(from fromIndex: MessageIndex, to toIndex: MessageIndex, animated: Bool, highlight: Bool = true, quote: (string: String, offset: Int?)? = nil, subject: EngineMessageReplyInnerSubject? = nil, scrollPosition: ListViewScrollPosition = .center(.bottom), setupReply: Bool = false) {
+        if highlight {
+            self.revealFilteredMessage(toIndex.id)
+        }
         self.chatHistoryLocationValue = ChatHistoryLocationInput(content: .Scroll(subject: MessageHistoryScrollToSubject(index: .message(toIndex), quote: quote.flatMap { quote in MessageHistoryScrollToSubject.Quote(string: quote.string, offset: quote.offset) }, subject: subject, setupReply: setupReply), anchorIndex: .message(toIndex), sourceIndex: .message(fromIndex), scrollPosition: scrollPosition, animated: animated, highlight: highlight, setupReply: setupReply), id: self.takeNextHistoryLocationId())
     }
     
@@ -3842,7 +3991,9 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             self._cachedPeerDataAndMessages.set(.single((transition.cachedData, transition.cachedDataMessages)))
             
             let loadState: ChatHistoryNodeLoadState
-            if transition.historyView.filteredEntries.isEmpty {
+            if transition.historyView.hasHiddenMessages && transition.historyView.filteredEntries.isEmpty {
+                loadState = .messages
+            } else if transition.historyView.filteredEntries.isEmpty {
                 if let firstEntry = transition.historyView.originalView.entries.first {
                     var isPeerJoined = false
                     for media in firstEntry.message.media {
@@ -4187,6 +4338,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 }
                 
                 strongSelf.historyView = transition.historyView
+                strongSelf.updateMessageFilterEmptyView()
                 
                 let loadState: ChatHistoryNodeLoadState
                 var alwaysHasMessages = false
@@ -4196,7 +4348,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                         alwaysHasMessages = true
                     }
                 }
-                if alwaysHasMessages {
+                if alwaysHasMessages || transition.historyView.hasHiddenMessages && transition.historyView.filteredEntries.isEmpty {
                     loadState = .messages
                 } else if let historyView = strongSelf.historyView {
                     if historyView.filteredEntries.isEmpty {
@@ -4662,6 +4814,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             }
         }
         transition.updateFrame(node: self.listView, frame: CGRect(origin: CGPoint(), size: updateSizeAndInsets.size))
+        self.layoutMessageFilterEmptyView()
         self.listView.transaction(deleteIndices: [], insertIndicesAndItems: [], updateIndicesAndItems: [], options: [.Synchronous, .LowLatency], scrollToItem: scrollToItem, additionalScrollDistance: scrollToTop ? 0.0 : additionalScrollDistance, updateSizeAndInsets: updateSizeAndInsets, stationaryItemRange: nil, updateOpaqueState: nil, completion: { [weak self] _ in
             guard let self else {
                 return
@@ -5159,6 +5312,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     }
     
     func scrollToMessage(index: MessageIndex, offset: CGFloat = 0.0) {
+        self.revealFilteredMessage(index.id)
         self.appliedScrollToMessageId = nil
         self.scrollToMessageIdPromise.set(.single(index))
     }

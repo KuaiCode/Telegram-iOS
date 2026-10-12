@@ -566,6 +566,10 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
             }
         }
         
+        if self.content.firstMessageAttributes.isMessageFilterCollapsed {
+            viewClassName = ChatMessageFilterItemNode.self
+        }
+
         // MARK: Swiftgram
         let needsQuickTranslateButton: Bool
         if viewClassName == ChatMessageBubbleItemNode.self {
@@ -613,8 +617,9 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
             
             let (layout, apply) = nodeLayout(self, params, top, bottom, disableDate ? ChatMessageHeaderSpec(hasDate: false, hasTopic: false) : dateAtBottom)
             
-            node.contentSize = layout.contentSize
-            node.insets = layout.insets
+            let filteredLayout = ChatMessageItemView.messageFilterLayout(layout, item: self)
+            node.contentSize = filteredLayout.contentSize
+            node.insets = filteredLayout.insets
             node.safeInsets = UIEdgeInsets(top: 0.0, left: params.leftInset, bottom: 0.0, right: params.rightInset)
             
             node.updateSelectionState(animated: false)
@@ -625,6 +630,7 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
                     return (nil, { info in
                         info.setIsOffscreen()
                         apply(.None, info, synchronousLoads)
+                        node.updateMessageFilterPresentation(contentSize: layout.contentSize)
                     })
                 })
             }
@@ -691,6 +697,16 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
             }
         }
         
+        if self.content.firstMessageAttributes.isMessageFilterCollapsed {
+            mergedTop = .none
+            mergedBottom = .none
+        }
+        if (top as? ChatMessageItemImpl)?.content.firstMessageAttributes.isMessageFilterCollapsed == true {
+            mergedBottom = .none
+        }
+        if (bottom as? ChatMessageItemImpl)?.content.firstMessageAttributes.isMessageFilterCollapsed == true {
+            mergedTop = .none
+        }
         return (mergedTop, mergedBottom, dateAtBottom)
     }
     
@@ -718,12 +734,13 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
                     
                     let (layout, apply) = nodeLayout(self, params, top, bottom, disableDate ? ChatMessageHeaderSpec(hasDate: false, hasTopic: false) : dateAtBottom)
                     Queue.mainQueue().async {
-                        completion(layout, { info in
+                        completion(ChatMessageItemView.messageFilterLayout(layout, item: self), { info in
                             apply(animation, info, false)
                             if let nodeValue = node() as? ChatMessageItemView {
                                 nodeValue.safeInsets = UIEdgeInsets(top: 0.0, left: params.leftInset, bottom: 0.0, right: params.rightInset)
                                 nodeValue.updateSelectionState(animated: false)
                                 nodeValue.updateHighlightedState(animated: false)
+                                nodeValue.updateMessageFilterPresentation(contentSize: layout.contentSize)
                             }
                         })
                     }

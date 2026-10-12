@@ -181,7 +181,7 @@ struct MessageFilterView: View {
     }
 
     private func groupSummary(_ group: SGMessageFilterGroup) -> String {
-        let action = (group.action == .dim ? "MessageFilter.Action.Dim" : "MessageFilter.Action.Allow").i18n(lang)
+        let action = group.action.localizationKey.i18n(lang)
         return "MessageFilter.GroupSummary".i18n(lang)
             .replacingOccurrences(of: "{action}", with: action)
             .replacingOccurrences(of: "{count}", with: String(group.keywords.count))
@@ -416,8 +416,9 @@ private struct MessageFilterGroupView: View {
                     updated.action = action
                     update(updated)
                 })) {
-                    Text("MessageFilter.Action.Dim".i18n(lang)).tag(SGMessageFilterAction.dim)
-                    Text("MessageFilter.Action.Allow".i18n(lang)).tag(SGMessageFilterAction.allow)
+                    ForEach(SGMessageFilterAction.allCases, id: \.self) { action in
+                        Text(action.localizationKey.i18n(lang)).tag(action)
+                    }
                 }
             }
             Section {

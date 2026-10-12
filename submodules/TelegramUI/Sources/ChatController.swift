@@ -6327,7 +6327,14 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                     source = .reference(ChatControllerContextReferenceContentSource(controller: strongSelf, sourceView: node.view, insets: .zero))
                 }
                 
-                let contextController = makeContextController(presentationData: strongSelf.presentationData, source: source, items: items |> map { ContextController.Items(content: .list($0)) }, gesture: gesture)
+                let contextController = makeContextController(presentationData: strongSelf.presentationData, source: source, items: items |> map { [weak self] items in
+                    var items = items
+                    if let filterItem = self?.messageFilterMenuItem() {
+                        items.append(.separator)
+                        items.append(filterItem)
+                    }
+                    return ContextController.Items(content: .list(items))
+                }, gesture: gesture)
                 contextController.dismissed = { [weak self] in
                     self?.canReadHistory.set(true)
                 }
@@ -6358,7 +6365,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             } else if peerId.namespace == Namespaces.Peer.CloudUser {
                 self.openBotForumMoreMenu(sourceView: self.navigationBar?.navigationButtonContextContainer(sourceView: sourceNode.view) ?? sourceNode.view, gesture: gesture)
             } else {
-                ChatListControllerImpl.openMoreMenu(context: self.context, peerId: peerId, sourceController: self, isViewingAsTopics: false, sourceView: sourceNode.view, gesture: gesture)
+                ChatListControllerImpl.openMoreMenu(context: self.context, peerId: peerId, sourceController: self, isViewingAsTopics: false, sourceView: sourceNode.view, gesture: gesture, additionalItems: self.messageFilterMenuItem().map { [$0] } ?? [])
             }
         }
         self.moreBarButton.addTarget(self, action: #selector(self.moreButtonPressed), forControlEvents: .touchUpInside)

@@ -708,8 +708,8 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     
     open func setupItem(_ item: ChatMessageItem, synchronousLoad: Bool) {
         if let previous = self.item, self.filterCover != nil,
-           previous.message.id != item.message.id || previous.message.stableVersion != item.message.stableVersion || previous.content.firstMessageAttributes.messageFilterGeneration != item.content.firstMessageAttributes.messageFilterGeneration || previous.content.firstMessageAttributes.messageFilterMatch != item.content.firstMessageAttributes.messageFilterMatch {
-            self.removeMessageFilterCover()
+           previous.message.id != item.message.id || previous.content.firstMessageAttributes.messageFilterGeneration != item.content.firstMessageAttributes.messageFilterGeneration || previous.content.firstMessageAttributes.messageFilterMatch != item.content.firstMessageAttributes.messageFilterMatch || previous.content.firstMessageAttributes.messageFilterRevealed != item.content.firstMessageAttributes.messageFilterRevealed {
+            self.invalidateMessageFilterDust()
         }
         self.item = item
     }
@@ -722,10 +722,20 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
         return layout
     }
 
+    private func invalidateMessageFilterDust() {
+        // Cancel the old reveal without exposing content while layout runs asynchronously.
+        self.filterDust?.revealed = {}
+        self.filterDust?.removeFromSupernode()
+        self.filterDust = nil
+        self.filterCover?.view.mask = nil
+        self.filterCover?.layer.removeAllAnimations()
+        self.filterCover?.alpha = 1.0
+    }
+
     private func removeMessageFilterCover() {
+        self.invalidateMessageFilterDust()
         self.filterCover?.removeFromSupernode()
         self.filterCover = nil
-        self.filterDust = nil
         for recognizer in self.filterDisabledGestures {
             recognizer.isEnabled = true
         }
@@ -747,27 +757,33 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
 
         if self.isMessageFilterMasked {
             let cover: HighlightTrackingButtonNode
-            let dust: MediaDustNode
-            if let currentCover = self.filterCover, let currentDust = self.filterDust {
+            if let currentCover = self.filterCover {
                 cover = currentCover
-                dust = currentDust
             } else {
                 cover = HighlightTrackingButtonNode()
-                dust = MediaDustNode(enableAnimations: item.context.sharedContext.energyUsageSettings.fullTranslucency)
-                dust.isUserInteractionEnabled = false
-                let messageId = item.message.id
-                dust.revealed = { [weak self, weak dust] in
-                    guard let self, let dust, self.filterDust === dust, let item = self.item, item.message.id == messageId else { return }
-                    item.controllerInteraction.setMessageFilterRevealed?(item.message.id, true)
-                }
                 cover.addTarget(self, action: #selector(self.revealMessageFilter), forControlEvents: .touchUpInside)
-                cover.addSubnode(dust)
                 cover.clipsToBounds = true
                 cover.isAccessibilityElement = true
                 cover.accessibilityTraits = .button
                 self.filterCover = cover
-                self.filterDust = dust
                 self.addSubnode(cover)
+            }
+            let dust: MediaDustNode
+            if let currentDust = self.filterDust {
+                dust = currentDust
+            } else {
+                dust = MediaDustNode(enableAnimations: item.context.sharedContext.energyUsageSettings.fullTranslucency)
+                dust.isUserInteractionEnabled = false
+                let messageId = item.message.id
+                let generation = attributes.messageFilterGeneration
+                dust.revealed = { [weak self, weak dust] in
+                    guard let self, let dust, self.filterDust === dust, self.isMessageFilterMasked,
+                          let item = self.item, item.message.id == messageId,
+                          item.content.firstMessageAttributes.messageFilterGeneration == generation else { return }
+                    item.controllerInteraction.setMessageFilterRevealed?(item.message.id, true, generation)
+                }
+                cover.addSubnode(dust)
+                self.filterDust = dust
             }
             // Headers (including avatars and dates) are separate list nodes.
             let frame = self.messageFilterContentFrame()
@@ -836,7 +852,7 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
 
     @objc private func collapseMessageFilter() {
         guard let item = self.item else { return }
-        item.controllerInteraction.setMessageFilterRevealed?(item.message.id, false)
+        item.controllerInteraction.setMessageFilterRevealed?(item.message.id, false, item.content.firstMessageAttributes.messageFilterGeneration)
     }
     
     open func updateAccessibilityData(_ accessibilityData: ChatMessageAccessibilityData) {

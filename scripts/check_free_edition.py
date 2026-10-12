@@ -195,12 +195,13 @@ def check_sources(sources):
 
 
 def check_feature_boundaries(sources):
-    """Evaluate the actual three compound Swift conditions over 60 input cases."""
+    """Evaluate the actual three compound Swift conditions over 80 input cases."""
     cases = (
         (NOTIFICATIONS, "&& !self.isEmpty", {"self.isEmpty": "blocked"}),
         (NOTIFICATIONS, "&& !self.silent", {"self.silent": "blocked"}),
-        (FILTER, "if !configuration.groups.isEmpty", {
+        (FILTER, "if canFilter && !configuration.groups.isEmpty", {
             "configuration.groups.isEmpty": "empty",
+            "canFilter": "eligible",
         }),
     )
     for path, marker, replacements in cases:
@@ -215,13 +216,14 @@ def check_feature_boundaries(sources):
             assert isinstance(node, (ast.Expression, ast.BoolOp, ast.UnaryOp, ast.Compare,
                                      ast.Name, ast.Load, ast.Constant, ast.And, ast.Or, ast.Not, ast.Gt)), marker
             if isinstance(node, ast.Name):
-                assert node.id in {"free", "status", "blocked", "empty"}, marker
+                assert node.id in {"free", "status", "blocked", "empty", "eligible"}, marker
         code = compile(tree, "<Swift free-edition condition>", "eval")
         for free, status in product((False, True), (-1, 0, 1, 2, 3)):
             flags = product((False, True), repeat=len(replacements))
             for values in flags:
                 inputs = dict(zip(replacements.values(), values), free=free, status=status)
-                expected = not any(values) and (free or status > 1)
+                permitted = all(value if name == "eligible" else not value for name, value in zip(replacements.values(), values))
+                expected = permitted and (free or status > 1)
                 assert eval(code, {"__builtins__": {}}, inputs) == expected, (marker, inputs)
 
 
@@ -260,6 +262,6 @@ if __name__ == "__main__":
     else:
         check_feature_boundaries(sources)
         check_detector(sources)
-        print("Free-edition source checks passed (10 gates; 60 boundary cases; 6 in-memory mutations).")
+        print("Free-edition source checks passed (10 gates; 80 boundary cases; 6 in-memory mutations).")
     print("Static checks only; macOS/iOS compilation and real-device tests remain required.")
     sys.exit(bool(failures))

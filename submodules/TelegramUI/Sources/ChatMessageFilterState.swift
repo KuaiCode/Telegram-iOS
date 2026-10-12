@@ -3,6 +3,31 @@ import Postbox
 import TelegramCore
 import ChatHistoryEntry
 import SGSimpleSettings
+import SwiftSignalKit
+
+// Observe complete albums, including captions outside the paged history window.
+func chatMessageFilterAlbums(postbox: Postbox, messages: [Message]) -> Signal<[Int64: [Message]], NoError> {
+    var representatives: [Int64: MessageId] = [:]
+    for message in messages {
+        if let key = message.groupingKey, representatives[key] == nil {
+            representatives[key] = message.id
+        }
+    }
+    if representatives.isEmpty {
+        return .single([:])
+    }
+    let groupKeys = representatives.mapValues { PostboxViewKey.messageGroup(id: $0) }
+    return postbox.combinedView(keys: Array(groupKeys.values))
+    |> map { view in
+        var result: [Int64: [Message]] = [:]
+        for (key, viewKey) in groupKeys {
+            if let group = view.views[viewKey] as? MessageGroupView, !group.messages.isEmpty {
+                result[key] = group.messages
+            }
+        }
+        return result
+    }
+}
 
 // Owned by one chat history node and accessed on its main-queue history pipeline.
 final class ChatMessageFilterState {
@@ -27,18 +52,24 @@ final class ChatMessageFilterState {
     private var revealed = Set<Key>()
     private var pendingReveal = Set<MessageId>()
     private var keys: [MessageId: Key] = [:]
-    private var contents: [MessageId: Content] = [:]
+    private var contents: [Key: [MessageId: Content]] = [:]
     private var matches: [Key: SGMessageFilterMatch] = [:]
+    private var generations: [Key: Int] = [:]
     private var generation = 0
 
     func configurationChanged() {
         self.configuration = SGSimpleSettings.shared.messageFilter.configuration
         self.generation += 1
+        self.generations.removeAll()
         self.revealed.removeAll()
         self.pendingReveal.removeAll()
     }
 
-    func setRevealed(_ id: MessageId, _ value: Bool) {
+    @discardableResult
+    func setRevealed(_ id: MessageId, _ value: Bool, expectedGeneration: Int? = nil) -> Bool {
+        if let expectedGeneration {
+            guard let key = self.keys[id], self.generations[key] == expectedGeneration else { return false }
+        }
         if value {
             self.pendingReveal.insert(id)
         } else {
@@ -51,13 +82,14 @@ final class ChatMessageFilterState {
                 self.revealed.remove(key)
             }
         }
+        return true
     }
 
     func toggleShowAll() {
         self.showAll.toggle()
     }
 
-    func process(_ entries: [ChatHistoryEntry], accountPeerId: PeerId) -> [ChatHistoryEntry] {
+    func process(_ entries: [ChatHistoryEntry], accountPeerId: PeerId, albums: [Int64: [Message]] = [:]) -> [ChatHistoryEntry] {
         self.hasHiddenMessages = false
         var messagesByKey: [Key: [Message]] = [:]
         for entry in entries {
@@ -72,31 +104,39 @@ final class ChatMessageFilterState {
                 break
             }
         }
+        for (groupId, messages) in albums where messagesByKey[.album(groupId)] != nil {
+            messagesByKey[.album(groupId)] = messages
+        }
         var results: [Key: (SGMessageFilterMatch?, Bool)] = [:]
         for (key, messages) in messagesByKey {
+            let previousContents = self.contents[key]
+            var contentChanged = previousContents?.count != messages.count
+            var updatedContents: [MessageId: Content] = [:]
             for message in messages {
                 if let previousKey = self.keys[message.id], previousKey != key {
                     self.revealed.remove(previousKey)
                     self.revealed.remove(key)
+                    contentChanged = true
                 }
                 self.keys[message.id] = key
-                if let previous = self.contents[message.id], !previous.matches(message) {
-                    self.revealed.remove(key)
+                if previousContents?[message.id]?.matches(message) != true {
+                    contentChanged = true
                 }
-                self.contents[message.id] = Content(text: message.text, media: message.media)
+                updatedContents[message.id] = Content(text: message.text, media: message.media)
             }
-            guard messages.allSatisfy({ message in
+            self.contents[key] = updatedContents
+            let canFilter = messages.allSatisfy { message in
                 message.effectivelyIncoming(accountPeerId) && message.adAttribute == nil
                     && !message.media.contains(where: { $0 is TelegramMediaAction || $0 is TelegramMediaExpiredContent })
-            }) else {
-                continue
             }
             var match: SGMessageFilterMatch?
-            if !configuration.groups.isEmpty && (SGFeaturePolicy.isFreeEdition || SGSimpleSettings.shared.ephemeralStatus > 1) {
+            if canFilter && !configuration.groups.isEmpty && (SGFeaturePolicy.isFreeEdition || SGSimpleSettings.shared.ephemeralStatus > 1) {
                 match = self.configuration.match(for: messages.map(\.text))
             }
-            if self.matches[key] != match {
+            if contentChanged || self.matches[key] != match || self.generations[key] == nil {
                 self.revealed.remove(key)
+                self.generation += 1
+                self.generations[key] = self.generation
             }
             self.matches[key] = match
             if messages.contains(where: { self.pendingReveal.contains($0.id) }) {
@@ -120,10 +160,11 @@ final class ChatMessageFilterState {
                 var updated = originalAttributes
                 updated.messageFilterMatch = match
                 updated.messageFilterRevealed = revealed
-                updated.messageFilterGeneration = self.generation
+                updated.messageFilterGeneration = self.generations[key] ?? 0
                 return .MessageEntry(message, presentationData, read, location, selection, updated)
             case let .MessageGroupEntry(groupId, messages, presentationData):
-                let (match, revealed) = results[.album(messages.first?.0.groupingKey ?? groupId)] ?? (nil, false)
+                let key = Key.album(messages.first?.0.groupingKey ?? groupId)
+                let (match, revealed) = results[key] ?? (nil, false)
                 if match?.action == .hide && !revealed {
                     self.hasHiddenMessages = true
                     return nil
@@ -132,7 +173,7 @@ final class ChatMessageFilterState {
                     var updated = originalAttributes
                     updated.messageFilterMatch = match
                     updated.messageFilterRevealed = revealed
-                    updated.messageFilterGeneration = self.generation
+                    updated.messageFilterGeneration = self.generations[key] ?? 0
                     return (message, read, selection, updated, location)
                 }
                 return .MessageGroupEntry(groupId, updated, presentationData)

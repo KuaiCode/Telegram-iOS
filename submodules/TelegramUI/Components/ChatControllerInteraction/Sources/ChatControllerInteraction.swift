@@ -332,7 +332,7 @@ public final class ChatControllerInteraction: ChatControllerInteractionProtocol 
     public let displayPollRestrictedToast: (EngineMessage.Id) -> Void
     
     public var canPlayMedia: Bool = false
-    public var setMessageFilterRevealed: ((EngineMessage.Id, Bool) -> Void)?
+    public var setMessageFilterRevealed: ((EngineMessage.Id, Bool, Int) -> Void)?
     public var hiddenMedia: [EngineMessage.Id: [EngineRawMedia]] = [:]
     public var expandedTranslationMessageStableIds: Set<UInt32> = Set()
     public var selectionState: ChatInterfaceSelectionState?

@@ -61,7 +61,8 @@ func chatHistoryEntriesForView(
     dynamicAdMessages: [Message],
     isMusicPlaylist: Bool,
     pinToTopStableId: EngineMessage.StableId?,
-    messageFilter: ChatMessageFilterState? = nil
+    messageFilter: ChatMessageFilterState? = nil,
+    messageFilterAlbums: [Int64: [Message]] = [:]
 ) -> ([ChatHistoryEntry], ChatHistoryEntriesForViewState) {
     var currentState = currentState
     
@@ -846,7 +847,7 @@ func chatHistoryEntriesForView(
     }
     
     if let messageFilter {
-        entries = messageFilter.process(entries, accountPeerId: context.account.peerId)
+        entries = messageFilter.process(entries, accountPeerId: context.account.peerId, albums: messageFilterAlbums)
     }
 
     if reverse {

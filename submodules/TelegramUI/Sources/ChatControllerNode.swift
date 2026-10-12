@@ -817,8 +817,8 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         
         super.init()
 
-        self.controllerInteraction.setMessageFilterRevealed = { [weak self] id, value in
-            self?.historyNode.setMessageFilterRevealed(id, value)
+        self.controllerInteraction.setMessageFilterRevealed = { [weak self] id, value, generation in
+            self?.historyNode.setMessageFilterRevealed(id, value, expectedGeneration: generation)
         }
 
         getContentAreaInScreenSpaceImpl = { [weak self] in

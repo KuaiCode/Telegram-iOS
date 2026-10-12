@@ -29,7 +29,7 @@ final class ChatMessageFilterItemNode: ChatMessageItemView {
 
     @objc private func expand() {
         guard let item = self.item else { return }
-        item.controllerInteraction.setMessageFilterRevealed?(item.message.id, true)
+        item.controllerInteraction.setMessageFilterRevealed?(item.message.id, true, item.content.firstMessageAttributes.messageFilterGeneration)
     }
 
     override func asyncLayout() -> (ChatMessageItem, ListViewItemLayoutParams, ChatMessageMerge, ChatMessageMerge, ChatMessageHeaderSpec) -> (ListViewItemNodeLayout, (ListViewItemUpdateAnimation, ListViewItemApply, Bool) -> Void) {

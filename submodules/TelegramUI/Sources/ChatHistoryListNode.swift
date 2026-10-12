@@ -50,6 +50,11 @@ struct ChatTopVisibleMessageRange: Equatable {
 
 private let historyMessageCount: Int = 44
 
+private enum MessageFilterLoadDirection: Equatable {
+    case earlier
+    case later
+}
+
 enum ChatHistoryViewScrollPosition {
     case unread(index: MessageIndex)
     case positionRestoration(index: MessageIndex, relativeOffset: CGFloat)
@@ -553,10 +558,12 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 if self.messageFilterEnabled {
                     switch chatHistoryLocationValue.content {
                     case let .InitialSearch(subject, _, _, _):
+                        self.messageFilterLoadDirection = nil
                         if case let .id(id) = subject.location {
                             self.messageFilterState.setRevealed(id, true)
                         }
                     case let .Scroll(subject, _, _, _, _, highlight, _) where highlight:
+                        self.messageFilterLoadDirection = nil
                         if case let .message(index) = subject.index {
                             self.messageFilterState.setRevealed(index.id, true)
                         }
@@ -670,6 +677,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     private var messageFilterObserver: NSObjectProtocol?
     private var messageFilterEnabled = false
     private var messageFilterEmptyView: UIStackView?
+    private var messageFilterLoadDirection: MessageFilterLoadDirection? = .earlier
 
     var showsFilteredMessages: Bool { self.messageFilterState.showAll }
     var canToggleMessageFilter: Bool { self.messageFilterEnabled && self.tag == nil }
@@ -680,12 +688,13 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     }
 
     func revealFilteredMessage(_ id: MessageId) {
+        self.messageFilterLoadDirection = nil
         self.setMessageFilterRevealed(id, true)
     }
 
-    func setMessageFilterRevealed(_ id: MessageId, _ value: Bool) {
+    func setMessageFilterRevealed(_ id: MessageId, _ value: Bool, expectedGeneration: Int? = nil) {
         guard self.canToggleMessageFilter else { return }
-        self.messageFilterState.setRevealed(id, value)
+        guard self.messageFilterState.setRevealed(id, value, expectedGeneration: expectedGeneration) else { return }
         self.refreshMessageFilter()
     }
 
@@ -751,10 +760,12 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     }
 
     @objc private func loadMoreFilteredHistory() {
+        self.messageFilterLoadDirection = .earlier
         self.loadFilteredHistory(at: self.historyView?.originalView.entries.first?.message.index)
     }
 
     @objc private func loadNewerFilteredHistory() {
+        self.messageFilterLoadDirection = .later
         self.loadFilteredHistory(at: self.historyView?.originalView.entries.last?.message.index)
     }
 
@@ -1187,6 +1198,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         self.beginReadHistoryManagement()
         
         if let subject = subject, case let .message(messageSubject, highlight, _, setupReply) = subject {
+            self.messageFilterLoadDirection = nil
             let initialSearchLocation: ChatHistoryInitialSearchLocation
             switch messageSubject {
             case let .id(id):
@@ -1630,7 +1642,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
 
         let currentViewVersion = self.currentViewVersion
         
-        var historyViewUpdate: Signal<(ChatHistoryViewUpdate, Int, ChatHistoryLocationInput?, ClosedRange<Int32>?, Set<MessageId>), NoError>
+        let historyViewUpdate: Signal<(ChatHistoryViewUpdate, Int, ChatHistoryLocationInput?, ClosedRange<Int32>?, Set<MessageId>), NoError>
         var isFirstTime = true
         var isSavedMusic = false
         var canReorder = false
@@ -2042,12 +2054,20 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             stopHistoryViewUpdates = .single(false)
         }
         
-        let historyViewUpdateValue = historyViewUpdate
-        historyViewUpdate = stopHistoryViewUpdates |> mapToSignal { value in
+        let includeFilterAlbums = self.canToggleMessageFilter
+        let historyViewUpdateWithAlbums = historyViewUpdate
+        |> mapToSignal { update -> Signal<((ChatHistoryViewUpdate, Int, ChatHistoryLocationInput?, ClosedRange<Int32>?, Set<MessageId>), [Int64: [Message]]), NoError> in
+            guard includeFilterAlbums, case let .HistoryView(view, _, _, _, _, _, _) = update.0 else {
+                return .single((update, [:]))
+            }
+            return chatMessageFilterAlbums(postbox: context.account.postbox, messages: view.entries.map(\.message))
+            |> map { albums in (update, albums) }
+        }
+        let historyViewUpdateUntilStopped = stopHistoryViewUpdates |> mapToSignal { value in
             if value {
                 return .never()
             } else {
-                return historyViewUpdateValue
+                return historyViewUpdateWithAlbums
             }
         }
                 
@@ -2056,7 +2076,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         let messageViewQueue = Queue.mainQueue()
         let historyViewTransitionDisposable = (combineLatest(queue: messageViewQueue,
             self.context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.translationSettings]) |> take(1),
-            historyViewUpdate |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_historyViewUpdate"),
+            historyViewUpdateUntilStopped |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_historyViewUpdate"),
             self.chatPresentationDataPromise.get() |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_chatPresentationData"),
             selectedMessages |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_selectedMessages"),
             updatingMedia |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_updatingMedia"),
@@ -2082,7 +2102,8 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             chatThemes |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_chatThemes"),
             deviceContactsNumbers |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_deviceContactsNumbers"),
             contentSettings |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_contentSettings")
-        ) |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_firstChatHistoryTransition")).startStrict(next: { [weak self] sharedData, /* MARK: Swiftgram */ update, chatPresentationData, selectedMessages, updatingMedia, networkType, preferredStoryHighQuality, animatedEmojiStickers, additionalAnimatedEmojiStickers, customChannelDiscussionReadState, customThreadOutgoingReadState, availableReactions, availableMessageEffects, savedMessageTags, defaultReaction, accountPeer, accountCountry, suggestAudioTranscription, promises, topicAuthorId, translationState, maxReadStoryId, recommendedChannels, audioTranscriptionTrial, chatThemes, deviceContactsNumbers, contentSettings in
+        ) |> debug_measureTimeToFirstEvent(label: "chatHistoryNode_firstChatHistoryTransition")).startStrict(next: { [weak self] sharedData, /* MARK: Swiftgram */ updateWithAlbums, chatPresentationData, selectedMessages, updatingMedia, networkType, preferredStoryHighQuality, animatedEmojiStickers, additionalAnimatedEmojiStickers, customChannelDiscussionReadState, customThreadOutgoingReadState, availableReactions, availableMessageEffects, savedMessageTags, defaultReaction, accountPeer, accountCountry, suggestAudioTranscription, promises, topicAuthorId, translationState, maxReadStoryId, recommendedChannels, audioTranscriptionTrial, chatThemes, deviceContactsNumbers, contentSettings in
+            let (update, filterAlbums) = updateWithAlbums
             let (historyAppearsCleared, pendingUnpinnedAllMessages, pendingRemovedMessages, currentlyPlayingMessageIdAndType, scrollToMessageId, chatHasBots, adMessagesAndFilterRevision) = promises
             let allAdMessages = adMessagesAndFilterRevision.0
             
@@ -2399,7 +2420,8 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                     dynamicAdMessages: allAdMessages.opportunistic,
                     isMusicPlaylist: isMusicPlaylist,
                     pinToTopStableId: pinToTopStableId,
-                    messageFilter: self?.canToggleMessageFilter == true ? self?.messageFilterState : nil
+                    messageFilter: self?.canToggleMessageFilter == true ? self?.messageFilterState : nil,
+                    messageFilterAlbums: filterAlbums
                 )
                 let lastHeaderId = filteredEntries.last.flatMap { listMessageDateHeaderId(timestamp: $0.index.timestamp) } ?? 0
                 let processedView = ChatHistoryView(hasHiddenMessages: self?.canToggleMessageFilter == true && self?.messageFilterState.hasHiddenMessages == true, originalView: view, filteredEntries: filteredEntries, associatedData: associatedData, lastHeaderId: lastHeaderId, id: id, locationInput: update.2, ignoreMessagesInTimestampRange: update.3, ignoreMessageIds: update.4)
@@ -3629,6 +3651,18 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 }
             }
             
+            if historyView.hasHiddenMessages {
+                if self.listView.isTracking && abs(self.listView.trackingOffset) > 14.0 {
+                    self.messageFilterLoadDirection = self.listView.trackingOffset > 0.0 ? .later : .earlier
+                }
+                // A sparse page can touch both edges. Keep the requested direction;
+                // an explicit message jump stays anchored until the user scrolls.
+                if mathesFirst && mathesLast {
+                    mathesFirst = self.messageFilterLoadDirection == .later
+                    mathesLast = self.messageFilterLoadDirection == .earlier
+                }
+            }
+
             if mathesFirst && historyView.originalView.laterId != nil {
                 let locationInput: ChatHistoryLocation = .Navigation(index: .message(lastHistoryIndex), anchorIndex: .message(lastHistoryIndex), count: historyMessageCount, highlight: false)
                 if self.chatHistoryLocationValue?.content != locationInput {
@@ -3829,13 +3863,23 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                     if index >= visibleRange.firstIndex && index <= visibleRange.lastIndex {
                         if case let .MessageEntry(message, _, _, _, _, _) = entry {
                             return EngineMessage(message)
+                        } else if case let .MessageGroupEntry(_, messages, _) = entry, let message = messages.first?.0 {
+                            return EngineMessage(message)
                         }
                     }
                     index += 1
                 }
             }
 
-            for case let .MessageEntry(message, _, _, _, _, _) in historyView.filteredEntries {
+            for entry in historyView.filteredEntries {
+                if case let .MessageEntry(message, _, _, _, _, _) = entry {
+                    return EngineMessage(message)
+                } else if case let .MessageGroupEntry(_, messages, _) = entry, let message = messages.first?.0 {
+                    return EngineMessage(message)
+                }
+            }
+            // Navigation must still have an origin when filtering hides the whole page.
+            if historyView.hasHiddenMessages, historyView.filteredEntries.isEmpty, let message = historyView.originalView.entries.last?.message {
                 return EngineMessage(message)
             }
         }

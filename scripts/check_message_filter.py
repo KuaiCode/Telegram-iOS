@@ -88,7 +88,111 @@ assert history.count("hasHiddenMessages &&") == 2
 assert "self.messageFilterState.setRevealed(id, true)" in history
 assert "private let messageFilterState = ChatMessageFilterState()" in history
 assert "controllerInteraction.setMessageFilterRevealed =" not in history
-assert "self?.historyNode.setMessageFilterRevealed(id, value)" in read("submodules/TelegramUI/Sources/ChatControllerNode.swift")
+assert "self?.historyNode.setMessageFilterRevealed(id, value, expectedGeneration: generation)" in read("submodules/TelegramUI/Sources/ChatControllerNode.swift")
+
+
+def section(source, start, end):
+    assert source.count(start) == 1, f"Review changed section: {start}"
+    tail = source.split(start, 1)[1]
+    assert end in tail, f"Missing section boundary: {end}"
+    return tail.split(end, 1)[0]
+
+
+def check_history_boundaries(state, history, base):
+    """Source contracts for the six reviewed bugs, not Swift execution tests."""
+    anchor = section(history, "public func anchorMessageInCurrentHistoryView()", "return nil")
+    album = section(state, "func chatMessageFilterAlbums(", "final class ChatMessageFilterState")
+    processing = section(state, "func process(", "let result: [ChatHistoryEntry]")
+    setup = section(base, "open func setupItem(", "public static func messageFilterLayout(")
+    invalidate = section(base, "private func invalidateMessageFilterDust()", "private func removeMessageFilterCover()")
+    paging = section(history, "// A sparse page can touch both edges.", "if mathesFirst && historyView.originalView.laterId")
+    revision = section(state, "if contentChanged ||", "self.matches[key] = match")
+    reveal = section(state, "func setRevealed(", "func toggleShowAll()")
+    callback = section(base, "dust.revealed = {", "cover.addSubnode(dust)")
+    return {
+        "hidden-page navigation": (
+            "historyView.hasHiddenMessages, historyView.filteredEntries.isEmpty" in anchor
+            and "historyView.originalView.entries.last?.message" in anchor
+            and "return EngineMessage(message)" in anchor
+            and anchor.count(".MessageGroupEntry(_, messages, _)") == 2
+        ),
+        "complete boundary albums": (
+            "PostboxViewKey.messageGroup(id: $0)" in album
+            and "postbox.combinedView(keys: Array(groupKeys.values))" in album
+            and "result[key] = group.messages" in album
+            and "take(1)" not in album
+            and "messagesByKey[.album(groupId)] = messages" in processing
+            and "messageFilterAlbums: filterAlbums" in history
+            and "historyViewUpdateUntilStopped |> debug_measureTimeToFirstEvent" in history
+        ),
+        "opaque cover during asynchronous reuse": (
+            "self.invalidateMessageFilterDust()" in setup
+            and "self.removeMessageFilterCover()" not in setup
+            and setup.index("self.invalidateMessageFilterDust()") < setup.index("self.item = item")
+            and "self.filterDust?.revealed = {}" in invalidate
+            and "self.filterDust?.removeFromSupernode()" in invalidate
+            and "self.filterCover?.view.mask = nil" in invalidate
+            and "self.filterCover?.layer.removeAllAnimations()" in invalidate
+            and "self.filterCover?.alpha = 1.0" in invalidate
+            and "self.filterCover?.removeFromSupernode()" not in invalidate
+        ),
+        "sparse-page paging direction": (
+            "if mathesFirst && mathesLast" in paging
+            and "mathesFirst = self.messageFilterLoadDirection == .later" in paging
+            and "mathesLast = self.messageFilterLoadDirection == .earlier" in paging
+            and "self.messageFilterLoadDirection = .earlier" in section(history, "@objc private func loadMoreFilteredHistory()", "@objc private func loadNewerFilteredHistory()")
+            and "self.messageFilterLoadDirection = .later" in section(history, "@objc private func loadNewerFilteredHistory()", "private func loadFilteredHistory(")
+            and "self.messageFilterLoadDirection = nil" in section(history, "func revealFilteredMessage(", "func setMessageFilterRevealed(")
+            and "self.listView.trackingOffset > 0.0 ? .later : .earlier" in history
+        ),
+        "album membership invalidation": (
+            "previousContents?.count != messages.count" in processing
+            and "previousContents?[message.id]?.matches(message) != true" in processing
+            and "updatedContents[message.id] = Content(text: message.text, media: message.media)" in processing
+            and "self.contents[key] = updatedContents" in processing
+            and "self.revealed.remove(key)" in revision
+            and "self.generations[key] = self.generation" in revision
+            and processing.index("if contentChanged ||") < processing.index("self.pendingReveal.contains($0.id)")
+        ),
+        "stale album reveal rejection": (
+            "self.generations[key] == expectedGeneration else { return false }" in reveal
+            and reveal.index("self.generations[key] == expectedGeneration") < reveal.index("self.revealed.insert(key)")
+            and "self.generations.removeAll()" in state
+            and state.count("updated.messageFilterGeneration = self.generations[key] ?? 0") == 2
+            and "messageFilterGeneration != item.content.firstMessageAttributes.messageFilterGeneration" in setup
+            and "self.filterDust === dust, self.isMessageFilterMasked" in callback
+            and "item.content.firstMessageAttributes.messageFilterGeneration == generation else { return }" in callback
+            and "setMessageFilterRevealed?(item.message.id, true, generation)" in callback
+        ),
+    }
+
+
+boundaries = check_history_boundaries(state, history, base)
+assert all(boundaries.values()), f"Boundary regression: {[name for name, passed in boundaries.items() if not passed]}"
+assert "anchorMessageInCurrentHistoryView()" in read("submodules/TelegramUI/Sources/Chat/ChatControllerNavigateToMessage.swift")
+assert "albums: messageFilterAlbums" in read("submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift")
+assert '"//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit"' in read("submodules/TelegramUI/BUILD")
+assert "((EngineMessage.Id, Bool, Int) -> Void)?" in read("submodules/TelegramUI/Components/ChatControllerInteraction/Sources/ChatControllerInteraction.swift")
+assert "setMessageFilterRevealed?(item.message.id, true, item.content.firstMessageAttributes.messageFilterGeneration)" in sources[3]
+assert "setMessageFilterRevealed?(item.message.id, false, item.content.firstMessageAttributes.messageFilterGeneration)" in base
+
+# Negative controls ensure each boundary check detects removal of its protection.
+mutations = [
+    (1, "historyView.originalView.entries.last?.message {", "historyView.filteredEntries.last?.message {", "hidden-page navigation"),
+    (0, "messagesByKey[.album(groupId)] = messages", "messagesByKey[.album(groupId)] = []", "complete boundary albums"),
+    (2, "self.invalidateMessageFilterDust()", "self.removeMessageFilterCover()", "opaque cover during asynchronous reuse"),
+    (1, "mathesFirst = self.messageFilterLoadDirection == .later", "mathesFirst = true", "sparse-page paging direction"),
+    (0, "previousContents?.count != messages.count", "false", "album membership invalidation"),
+    (0, "previousContents?[message.id]?.matches(message) != true", "false", "album membership invalidation"),
+    (0, "self.generations[key] == expectedGeneration", "true", "stale album reveal rejection"),
+    (2, "item.content.firstMessageAttributes.messageFilterGeneration == generation else { return }", "true else { return }", "stale album reveal rejection"),
+]
+for index, before, after, boundary in mutations:
+    mutated = [state, history, base]
+    assert before in mutated[index], f"Stale negative control: {before}"
+    mutated[index] = mutated[index].replace(before, after, 1)
+    assert not check_history_boundaries(*mutated)[boundary], f"Missed negative control: {boundary}"
 
 print("Message-filter source checks passed: five actions, three locales, dependencies, renderer hooks, raw album captions, pagination and reveal guards.")
+print(f"Six history boundary contracts passed; all {len(mutations)} negative controls detected.")
 print("Static checks only; Swift assertions, compilation, gestures and VoiceOver were not run.")

@@ -99,7 +99,7 @@ def section(source, start, end):
 
 
 def check_history_boundaries(state, history, base):
-    """Source contracts for the six reviewed bugs, not Swift execution tests."""
+    """Source contracts for the reviewed bugs, not Swift execution tests."""
     anchor = section(history, "public func anchorMessageInCurrentHistoryView()", "return nil")
     album = section(state, "func chatMessageFilterAlbums(", "final class ChatMessageFilterState")
     processing = section(state, "func process(", "let result: [ChatHistoryEntry]")
@@ -109,6 +109,10 @@ def check_history_boundaries(state, history, base):
     revision = section(state, "if contentChanged ||", "self.matches[key] = match")
     reveal = section(state, "func setRevealed(", "func toggleShowAll()")
     callback = section(base, "dust.revealed = {", "cover.addSubnode(dust)")
+    content = section(state, "private struct Content {", "var configuration")
+    scroll = section(history, "self.listView.visibleContentOffsetChanged =", "strongSelf.messageReadMetricsTracker?.reportUserActivity()")
+    range_callback = section(history, "private func processDisplayedItemRangeChanged(", "private func updateHistoryPagination(")
+    pagination = section(history, "private func updateHistoryPagination(", "private func updateMessageReadTracker()")
     return {
         "hidden-page navigation": (
             "historyView.hasHiddenMessages, historyView.filteredEntries.isEmpty" in anchor
@@ -143,12 +147,12 @@ def check_history_boundaries(state, history, base):
             and "self.messageFilterLoadDirection = .earlier" in section(history, "@objc private func loadMoreFilteredHistory()", "@objc private func loadNewerFilteredHistory()")
             and "self.messageFilterLoadDirection = .later" in section(history, "@objc private func loadNewerFilteredHistory()", "private func loadFilteredHistory(")
             and "self.messageFilterLoadDirection = nil" in section(history, "func revealFilteredMessage(", "func setMessageFilterRevealed(")
-            and "self.listView.trackingOffset > 0.0 ? .later : .earlier" in history
+            and "strongSelf.listView.trackingOffset > 0.0 ? .later : .earlier" in scroll
         ),
         "album membership invalidation": (
             "previousContents?.count != messages.count" in processing
             and "previousContents?[message.id]?.matches(message) != true" in processing
-            and "updatedContents[message.id] = Content(text: message.text, media: message.media)" in processing
+            and "updatedContents[message.id] = Content(text: message.text, entities: message.textEntitiesAttribute?.entities ?? [], media: message.media)" in processing
             and "self.contents[key] = updatedContents" in processing
             and "self.revealed.remove(key)" in revision
             and "self.generations[key] = self.generation" in revision
@@ -164,6 +168,28 @@ def check_history_boundaries(state, history, base):
             and "item.content.firstMessageAttributes.messageFilterGeneration == generation else { return }" in callback
             and "setMessageFilterRevealed?(item.message.id, true, generation)" in callback
         ),
+        "entity-only content updates": (
+            "let entities: [MessageTextEntity]" in content
+            and "self.entities == (message.textEntitiesAttribute?.entities ?? [])" in content
+            and "entities: message.textEntitiesAttribute?.entities ?? []" in processing
+            and "previousContents?[message.id]?.matches(message) != true" in processing
+            and "stableVersion" not in content
+            and "message.attributes" not in content
+        ),
+        "scrolling without visible-range changes": (
+            "if strongSelf.canToggleMessageFilter," in scroll
+            and "strongSelf.listView.opaqueTransactionState as? ChatHistoryTransactionOpaqueState" in scroll
+            and "historyView.hasHiddenMessages, strongSelf.listView.isTracking, abs(strongSelf.listView.trackingOffset) > 14.0" in scroll
+            and "strongSelf.updateHistoryPagination(displayedRange: strongSelf.listView.displayedItemRange, historyView: historyView)" in scroll
+            and scroll.index("strongSelf.messageFilterLoadDirection =") < scroll.index("strongSelf.updateHistoryPagination(")
+            and "if strongSelf.messageFilterLoadDirection" not in scroll
+            and "self.updateHistoryPagination(displayedRange: displayedRange, historyView: historyView)" in range_callback
+            and "self.chatHistoryLocationValue?.content != locationInput" in pagination
+            and "historyView.originalView.entries.first?.message.index ?? firstEntry.index" in pagination
+            and "historyView.originalView.entries.last?.message.index ?? lastEntry.index" in pagination
+            and "trackingOffset" not in range_callback
+            and "trackingOffset" not in pagination
+        ),
     }
 
 
@@ -176,6 +202,16 @@ assert "((EngineMessage.Id, Bool, Int) -> Void)?" in read("submodules/TelegramUI
 assert "setMessageFilterRevealed?(item.message.id, true, item.content.firstMessageAttributes.messageFilterGeneration)" in sources[3]
 assert "setMessageFilterRevealed?(item.message.id, false, item.content.firstMessageAttributes.messageFilterGeneration)" in base
 
+# Verify that actual scrolling delivers the offset callback independently of range changes.
+list_view = read("submodules/Display/Source/ListView.swift")
+scroll_dispatch = section(list_view, "self.didScrollWithOffset?(deltaY, .immediate, nil, self.isTrackingOrDecelerating)", "private func calculateAdditionalTopInverseInset()")
+assert "self.updateVisibleContentOffset(transition: .immediate)\n        self.updateVisibleItemRange()" in scroll_dispatch
+assert "self.visibleContentOffsetChanged(self.visibleContentOffset(), transition)" in list_view
+entity_type = read("submodules/TelegramCore/Sources/SyncCore/SyncCore_TextEntitiesMessageAttribute.swift")
+assert "public enum MessageTextEntityType: Equatable" in entity_type and "case TextUrl(url: String)" in entity_type
+assert "public struct MessageTextEntity: PostboxCoding, Codable, Equatable" in entity_type
+assert "return lhs.range == rhs.range && lhs.type == rhs.type" in entity_type
+
 # Negative controls ensure each boundary check detects removal of its protection.
 mutations = [
     (1, "historyView.originalView.entries.last?.message {", "historyView.filteredEntries.last?.message {", "hidden-page navigation"),
@@ -186,6 +222,12 @@ mutations = [
     (0, "previousContents?[message.id]?.matches(message) != true", "false", "album membership invalidation"),
     (0, "self.generations[key] == expectedGeneration", "true", "stale album reveal rejection"),
     (2, "item.content.firstMessageAttributes.messageFilterGeneration == generation else { return }", "true else { return }", "stale album reveal rejection"),
+    (0, "self.entities == (message.textEntitiesAttribute?.entities ?? [])", "true", "entity-only content updates"),
+    (0, "entities: message.textEntitiesAttribute?.entities ?? []", "entities: []", "entity-only content updates"),
+    (1, "strongSelf.updateHistoryPagination(displayedRange: strongSelf.listView.displayedItemRange, historyView: historyView)", "", "scrolling without visible-range changes"),
+    (1, "strongSelf.updateHistoryPagination(displayedRange: strongSelf.listView.displayedItemRange, historyView: historyView)", "if strongSelf.messageFilterLoadDirection != .earlier { strongSelf.updateHistoryPagination(displayedRange: strongSelf.listView.displayedItemRange, historyView: historyView) }", "scrolling without visible-range changes"),
+    (1, "historyView.hasHiddenMessages, strongSelf.listView.isTracking, abs", "historyView.hasHiddenMessages, abs", "scrolling without visible-range changes"),
+    (1, "self.updateHistoryPagination(displayedRange: displayedRange, historyView: historyView)", "", "scrolling without visible-range changes"),
 ]
 for index, before, after, boundary in mutations:
     mutated = [state, history, base]
@@ -194,5 +236,5 @@ for index, before, after, boundary in mutations:
     assert not check_history_boundaries(*mutated)[boundary], f"Missed negative control: {boundary}"
 
 print("Message-filter source checks passed: five actions, three locales, dependencies, renderer hooks, raw album captions, pagination and reveal guards.")
-print(f"Six history boundary contracts passed; all {len(mutations)} negative controls detected.")
+print(f"All {len(boundaries)} history boundary contracts passed; all {len(mutations)} negative controls detected.")
 print("Static checks only; Swift assertions, compilation, gestures and VoiceOver were not run.")

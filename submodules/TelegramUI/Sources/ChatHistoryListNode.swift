@@ -1254,6 +1254,14 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         self.listView.visibleContentOffsetChanged = { [weak self] offset, _ in
             if let strongSelf = self {
                 strongSelf.contentPositionChanged(offset)
+
+                if strongSelf.canToggleMessageFilter,
+                   let historyView = (strongSelf.listView.opaqueTransactionState as? ChatHistoryTransactionOpaqueState)?.historyView,
+                   historyView.hasHiddenMessages, strongSelf.listView.isTracking, abs(strongSelf.listView.trackingOffset) > 14.0 {
+                    strongSelf.messageFilterLoadDirection = strongSelf.listView.trackingOffset > 0.0 ? .later : .earlier
+                    // Sparse pages can scroll without changing their visible item range.
+                    strongSelf.updateHistoryPagination(displayedRange: strongSelf.listView.displayedItemRange, historyView: historyView)
+                }
                 
                 if strongSelf.tag == nil {
                     var atBottom = false
@@ -3608,6 +3616,25 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             return VisibleMessageRange(lowerBound: range.lowerBound, upperBound: range.upperBound)
         })
         
+        self.updateHistoryPagination(displayedRange: displayedRange, historyView: historyView)
+
+        var containsPlayableWithSoundItemNode = false
+        self.forEachVisibleItemNode { itemNode in
+            if let chatItemView = itemNode as? ChatMessageItemView, chatItemView.playMediaWithSound() != nil {
+                containsPlayableWithSoundItemNode = true
+            }
+        }
+        self.hasVisiblePlayableItemNodesPromise.set(containsPlayableWithSoundItemNode)
+
+        if containsPlayableWithSoundItemNode && !self.isInteractivelyScrollingValue {
+            self.isInteractivelyScrollingPromise.set(true)
+            self.isInteractivelyScrollingPromise.set(false)
+        }
+
+        self.updateMessageReadTracker()
+    }
+
+    private func updateHistoryPagination(displayedRange: ListViewDisplayedItemRange, historyView: ChatHistoryView) {
         if let loaded = displayedRange.visibleRange, let firstEntry = historyView.filteredEntries.first, let lastEntry = historyView.filteredEntries.last {
             let firstHistoryIndex = historyView.hasHiddenMessages ? (historyView.originalView.entries.first?.message.index ?? firstEntry.index) : firstEntry.index
             let lastHistoryIndex = historyView.hasHiddenMessages ? (historyView.originalView.entries.last?.message.index ?? lastEntry.index) : lastEntry.index
@@ -3652,9 +3679,6 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             }
             
             if historyView.hasHiddenMessages {
-                if self.listView.isTracking && abs(self.listView.trackingOffset) > 14.0 {
-                    self.messageFilterLoadDirection = self.listView.trackingOffset > 0.0 ? .later : .earlier
-                }
                 // A sparse page can touch both edges. Keep the requested direction;
                 // an explicit message jump stays anchored until the user scrolls.
                 if mathesFirst && mathesLast {
@@ -3691,21 +3715,6 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 }
             }
         }
-        
-        var containsPlayableWithSoundItemNode = false
-        self.forEachVisibleItemNode { itemNode in
-            if let chatItemView = itemNode as? ChatMessageItemView, chatItemView.playMediaWithSound() != nil {
-                containsPlayableWithSoundItemNode = true
-            }
-        }
-        self.hasVisiblePlayableItemNodesPromise.set(containsPlayableWithSoundItemNode)
-        
-        if containsPlayableWithSoundItemNode && !self.isInteractivelyScrollingValue {
-            self.isInteractivelyScrollingPromise.set(true)
-            self.isInteractivelyScrollingPromise.set(false)
-        }
-        
-        self.updateMessageReadTracker()
     }
     
     private func updateMessageReadTracker() {

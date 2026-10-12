@@ -38,10 +38,12 @@ final class ChatMessageFilterState {
 
     private struct Content {
         let text: String
+        let entities: [MessageTextEntity]
         let media: [Media]
 
         func matches(_ message: Message) -> Bool {
             return self.text == message.text && self.media.count == message.media.count
+                && self.entities == (message.textEntitiesAttribute?.entities ?? [])
                 && zip(self.media, message.media).allSatisfy { $0.isEqual(to: $1) }
         }
     }
@@ -122,7 +124,7 @@ final class ChatMessageFilterState {
                 if previousContents?[message.id]?.matches(message) != true {
                     contentChanged = true
                 }
-                updatedContents[message.id] = Content(text: message.text, media: message.media)
+                updatedContents[message.id] = Content(text: message.text, entities: message.textEntitiesAttribute?.entities ?? [], media: message.media)
             }
             self.contents[key] = updatedContents
             let canFilter = messages.allSatisfy { message in

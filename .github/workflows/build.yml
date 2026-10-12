@@ -42,6 +42,7 @@ jobs:
           xcodebuild -version
           test "$(uname -m)" = arm64
           df -h .
+          echo "BAZEL_CACHE_DIR=$RUNNER_TEMP/bazel-cache" >> "$GITHUB_ENV"
 
       - name: Check Swift syntax across app sources
         run: |
@@ -64,6 +65,17 @@ jobs:
           python3 scripts/check_swift_warning_configuration.py
           python3 scripts/test_ci_unsigned_configuration.py
           python3 scripts/test_build_analysis.py
+          python3 scripts/test_trim_bazel_cache.py
+
+      - name: Restore Bazel cache
+        id: bazel-cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: ${{ env.BAZEL_CACHE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-bazel-release-arm64-v1-${{ hashFiles('versions.json', '.bazelrc', 'MODULE.bazel', 'MODULE.bazel.lock', 'build-system/Make/*.py', 'build-system/patches/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-bazel-release-arm64-v1-${{ hashFiles('versions.json', '.bazelrc', 'MODULE.bazel', 'MODULE.bazel.lock', 'build-system/Make/*.py', 'build-system/patches/**') }}-
 
       - name: Prepare unsigned build
         run: |
@@ -84,6 +96,7 @@ jobs:
       - name: Analyze complete app build
         run: |
           python3 -u build-system/Make/Make.py \
+            --cacheDir="$BAZEL_CACHE_DIR" \
             build \
             --target=//Telegram:Swiftgram \
             --configurationPath=build-input/ci-unsigned-configuration.json \
@@ -95,8 +108,10 @@ jobs:
             2>&1 | tee build/analysis.log
 
       - name: Build unsigned device IPA
+        id: bazel-build
         run: |
           python3 -u build-system/Make/Make.py \
+            --cacheDir="$BAZEL_CACHE_DIR" \
             build \
             --target=//Telegram:Swiftgram \
             --configurationPath=build-input/ci-unsigned-configuration.json \
@@ -109,6 +124,24 @@ jobs:
           mv build/artifacts/Swiftgram.ipa build/artifacts/Airygram-unsigned.ipa
           mv build/artifacts/Swiftgram.DSYMs.zip build/artifacts/Airygram.DSYMs.zip
           unzip -tq build/artifacts/Airygram-unsigned.ipa
+
+      - name: Limit Bazel cache to 4 GiB
+        id: trim-bazel-cache
+        if: ${{ !cancelled() && (steps.bazel-build.outcome == 'success' || steps.bazel-build.outcome == 'failure') }}
+        continue-on-error: true
+        run: |
+          # Finish asynchronous cache writes before pruning or archiving, including failed builds.
+          BAZEL_VERSION=$(python3 -c 'import json; print(json.load(open("versions.json"))["bazel"].split(":")[0])')
+          "build-input/bazel-${BAZEL_VERSION}-darwin-arm64" shutdown
+          python3 scripts/trim_bazel_cache.py "$BAZEL_CACHE_DIR"
+
+      - name: Save Bazel cache
+        if: ${{ !cancelled() && steps.trim-bazel-cache.outcome == 'success' && steps.bazel-cache.outputs.cache-primary-key != '' }}
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ${{ env.BAZEL_CACHE_DIR }}
+          key: ${{ steps.bazel-cache.outputs.cache-primary-key }}
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4

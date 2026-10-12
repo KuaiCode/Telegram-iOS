@@ -36,7 +36,9 @@ Bundle ID 保持 `dev.kuaicode.airygram`。`AAAAAAAAAA` 仅用于未签名构建
 
 API 凭据只写入 CI 的 `build-input/`（已被 Git 忽略），但会编译进应用；不要把 IPA 当作隐藏这些凭据的方式。工作流仅上传 IPA、调试符号和构建日志，不上传生成的配置文件。
 
-本地可运行 `python scripts/test_ci_unsigned_configuration.py` 检查配置生成与无效输入处理，`python scripts/test_build_analysis.py` 检查分析模式的参数、失败传递和产物保护；真正的编译结果以 GitHub Actions 运行为准。
+CI 会恢复同一工具链和构建配置的 Bazel 磁盘缓存。编译成功或失败后（主动取消除外），先停止 Bazel，再按最近使用时间裁剪至最多 4 GiB 并保存新快照；此上限约束上传前的缓存文件总大小，构建期间可以暂时超过。缓存服务不可用或裁剪失败不会改变编译结果，裁剪失败时跳过保存。GitHub 按仓库缓存配额自动淘汰旧快照。
+
+本地可运行 `python scripts/test_ci_unsigned_configuration.py` 检查配置生成与无效输入处理，`python scripts/test_build_analysis.py` 检查分析模式的参数、失败传递和产物保护，`python scripts/test_trim_bazel_cache.py` 检查缓存裁剪与目录外文件保护；真正的编译结果以 GitHub Actions 运行为准。
 
 # Telegram iOS Source Code Compilation Guide
 

@@ -24,6 +24,7 @@ swift_library(
         #
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/Display:Display",
+        "//submodules/UIKitRuntimeUtils:UIKitRuntimeUtils",
         "//submodules/AsyncDisplayKit:AsyncDisplayKit",
         "//submodules/TextSelectionNode:TextSelectionNode",
         "//submodules/LegacyMediaPickerUI:LegacyMediaPickerUI",

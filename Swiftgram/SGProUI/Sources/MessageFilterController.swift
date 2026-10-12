@@ -1,4 +1,6 @@
 import Foundation
+import UIKit
+import UIKitRuntimeUtils
 import SwiftUI
 import SGSwiftUI
 import SGStrings
@@ -65,6 +67,7 @@ struct MessageFilterView: View {
 
     @State private var configuration: SGMessageFilterConfiguration
     @State private var newGroupName = ""
+    @State private var selectedGroupId: Int?
     @State private var isBusy = false
     @State private var errorMessage: String?
 
@@ -118,9 +121,9 @@ struct MessageFilterView: View {
             Section(header: Text("MessageFilter.Groups".i18n(lang)), footer: Text("MessageFilter.Groups.OrderHelp".i18n(lang))) {
                 // Positional IDs keep navigation stable while a group's name is edited.
                 ForEach(configuration.groups, id: \.id) { group in
-                    NavigationLink(destination: MessageFilterGroupView(group: group, onSave: updateGroup, onExport: { selected in
+                    NavigationLink(destination: MessageFilterGroupView(group: group, wrapperController: wrapperController, onError: showError, onExport: { selected in
                         chooseExportFormat(SGMessageFilterConfiguration(matchingMode: configuration.matchingMode, groups: [selected]))
-                    })) {
+                    }), tag: group.id, selection: $selectedGroupId) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(group.name)
                             Text(groupSummary(group))
@@ -171,9 +174,14 @@ struct MessageFilterView: View {
             configuration = SGSimpleSettings.shared.messageFilter.configuration
         }
         .onAppear {
+            // The inner navigation stack owns edge swipes while a group is open.
+            wrapperController?.view.disablesInteractiveTransitionGestureRecognizerNow = { selectedGroupId != nil }
             if let error = SGSimpleSettings.shared.messageFilter.loadError {
                 showError(error)
             }
+        }
+        .onDisappear {
+            wrapperController?.view.disablesInteractiveTransitionGestureRecognizerNow = nil
         }
         .alert(isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Alert(title: Text("MessageFilter.Error".i18n(lang)), message: Text(errorMessage ?? ""), dismissButton: .default(Text("MessageFilter.OK".i18n(lang))))
@@ -205,15 +213,6 @@ struct MessageFilterView: View {
         if save(updated) {
             newGroupName = ""
         }
-    }
-
-    private func updateGroup(named name: String, with group: SGMessageFilterGroup) -> Bool {
-        guard let index = configuration.groups.firstIndex(where: { $0.name == name }) else { return false }
-        var updated = configuration
-        updated.groups[index] = group
-        guard save(updated) else { return false }
-        SGSimpleSettings.shared.messageFilter.renameLastUsedGroup(from: name, to: group.name)
-        return true
     }
 
     private func showOptions(title: String, options: [(String, Bool, () -> Void)]) {
@@ -365,21 +364,161 @@ struct MessageFilterView: View {
     }
 
     private func showError(_ error: Error) {
-        let key: String
-        if let error = error as? SGMessageFilterRuleFileError {
-            switch error {
-            case .fileTooLarge: key = "MessageFilter.Error.FileTooLarge"
-            case .unsupportedFormat: key = "MessageFilter.Error.UnsupportedFormat"
-            case .emptyGroupName: key = "MessageFilter.Error.EmptyGroupName"
-            case .duplicateGroupName: key = "MessageFilter.Error.DuplicateGroupName"
-            case .emptyKeyword: key = "MessageFilter.Error.EmptyKeyword"
-            case .multilineKeyword: key = "MessageFilter.Error.MultilineKeyword"
-            case .unreadableStoredConfiguration: key = "MessageFilter.Error.StoredConfiguration"
-            case .invalidFile, .invalidGroupID, .duplicateGroupID: key = "MessageFilter.Error.InvalidFile"
-            }
-            errorMessage = key.i18n(lang)
-        } else {
-            errorMessage = "MessageFilter.Error.FileAccess".i18n(lang) + "\n" + error.localizedDescription
+        errorMessage = messageFilterErrorText(error, language: lang)
+    }
+}
+
+private func messageFilterErrorText(_ error: Error, language: String) -> String {
+    let key: String
+    if let error = error as? SGMessageFilterRuleFileError {
+        switch error {
+        case .fileTooLarge: key = "MessageFilter.Error.FileTooLarge"
+        case .unsupportedFormat: key = "MessageFilter.Error.UnsupportedFormat"
+        case .emptyGroupName: key = "MessageFilter.Error.EmptyGroupName"
+        case .duplicateGroupName: key = "MessageFilter.Error.DuplicateGroupName"
+        case .emptyKeyword: key = "MessageFilter.Error.EmptyKeyword"
+        case .multilineKeyword: key = "MessageFilter.Error.MultilineKeyword"
+        case .unreadableStoredConfiguration: key = "MessageFilter.Error.StoredConfiguration"
+        case .invalidFile, .invalidGroupID, .duplicateGroupID: key = "MessageFilter.Error.InvalidFile"
+        }
+    } else if error as? SGMessageFilterKeywordError == .targetGroupMissing {
+        key = "MessageFilter.Selection.TargetMissing"
+    } else {
+        return "MessageFilter.Error.FileAccess".i18n(language) + "\n" + error.localizedDescription
+    }
+    return key.i18n(language)
+}
+
+@available(iOS 13.0, *)
+private final class MessageFilterGroupEditor: ObservableObject {
+    @Published private(set) var group: SGMessageFilterGroup
+    @Published private(set) var name: String
+    @Published private(set) var error: Error?
+    private var isComposing = false
+    private var pendingRename: DispatchWorkItem?
+
+    init(group: SGMessageFilterGroup) {
+        self.group = group
+        self.name = group.name
+    }
+
+    deinit {
+        pendingRename?.cancel()
+    }
+
+    func nameChanged(_ name: String, isComposing: Bool) {
+        guard self.name != name || self.isComposing != isComposing else { return }
+        self.name = name
+        self.isComposing = isComposing
+        pendingRename?.cancel()
+        pendingRename = nil
+        error = nil
+        guard !isComposing else { return }
+        let work = DispatchWorkItem { [weak self] in
+            self?.saveName()
+        }
+        pendingRename = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    @discardableResult
+    func saveName() -> Bool {
+        pendingRename?.cancel()
+        pendingRename = nil
+        guard !isComposing else { return false }
+        let newName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !newName.isEmpty else {
+            error = SGMessageFilterRuleFileError.emptyGroupName
+            return false
+        }
+        let oldName = group.name
+        guard update({ $0.name = newName }) else { return false }
+        SGSimpleSettings.shared.messageFilter.renameLastUsedGroup(from: oldName, to: group.name)
+        return true
+    }
+
+    func finishEditing(_ text: String) {
+        nameChanged(text, isComposing: false)
+        if saveName() {
+            name = group.name
+        }
+    }
+
+    @discardableResult
+    func update(_ change: (inout SGMessageFilterGroup) -> Void) -> Bool {
+        let store = SGSimpleSettings.shared.messageFilter
+        var latest = store.configuration
+        guard let index = latest.groups.firstIndex(where: { $0.name == group.name }) else {
+            error = SGMessageFilterKeywordError.targetGroupMissing
+            return false
+        }
+        change(&latest.groups[index])
+        do {
+            try store.update(latest)
+            group = store.configuration.groups[index]
+            error = nil
+            return true
+        } catch {
+            self.error = error
+            return false
+        }
+    }
+}
+
+@available(iOS 13.0, *)
+private struct MessageFilterGroupNameField: UIViewRepresentable {
+    let editor: MessageFilterGroupEditor
+    let placeholder: String
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        let editor: MessageFilterGroupEditor
+
+        init(editor: MessageFilterGroupEditor) {
+            self.editor = editor
+        }
+
+        @objc func textChanged(_ field: UITextField) {
+            editor.nameChanged(field.text ?? "", isComposing: field.markedTextRange != nil)
+        }
+
+        func textFieldDidChangeSelection(_ textField: UITextField) {
+            textChanged(textField)
+        }
+
+        func textFieldDidEndEditing(_ textField: UITextField) {
+            guard textField.markedTextRange == nil else { return }
+            editor.finishEditing(textField.text ?? "")
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            textField.resignFirstResponder()
+            return true
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        return Coordinator(editor: editor)
+    }
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField()
+        field.font = UIFont.preferredFont(forTextStyle: .body)
+        field.textColor = .label
+        field.adjustsFontForContentSizeCategory = true
+        field.autocorrectionType = .no
+        field.autocapitalizationType = .none
+        field.returnKeyType = .done
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        field.delegate = context.coordinator
+        field.addTarget(context.coordinator, action: #selector(Coordinator.textChanged(_:)), for: .editingChanged)
+        return field
+    }
+
+    func updateUIView(_ field: UITextField, context: Context) {
+        field.placeholder = placeholder
+        field.accessibilityLabel = placeholder
+        if field.markedTextRange == nil, field.text != editor.name {
+            field.text = editor.name
         }
     }
 }
@@ -387,86 +526,74 @@ struct MessageFilterView: View {
 @available(iOS 13.0, *)
 private struct MessageFilterGroupView: View {
     @Environment(\.lang) var lang: String
-    @State private var group: SGMessageFilterGroup
-    @State private var savedName: String
-    @State private var name: String
+    @StateObject private var editor: MessageFilterGroupEditor
     @State private var newKeyword = ""
-    let initialGroup: SGMessageFilterGroup
-    let onSave: (String, SGMessageFilterGroup) -> Bool
+    weak var wrapperController: LegacyController?
+    let onError: (Error) -> Void
     let onExport: (SGMessageFilterGroup) -> Void
 
-    init(group: SGMessageFilterGroup, onSave: @escaping (String, SGMessageFilterGroup) -> Bool, onExport: @escaping (SGMessageFilterGroup) -> Void) {
-        _group = State(initialValue: group)
-        _savedName = State(initialValue: group.name)
-        _name = State(initialValue: group.name)
-        self.initialGroup = group
-        self.onSave = onSave
+    init(group: SGMessageFilterGroup, wrapperController: LegacyController?, onError: @escaping (Error) -> Void, onExport: @escaping (SGMessageFilterGroup) -> Void) {
+        _editor = StateObject(wrappedValue: MessageFilterGroupEditor(group: group))
+        self.wrapperController = wrapperController
+        self.onError = onError
         self.onExport = onExport
     }
 
     var body: some View {
         List {
             Section(header: Text("MessageFilter.GroupName".i18n(lang))) {
-                TextField("MessageFilter.GroupName".i18n(lang), text: $name, onCommit: rename)
-                    .disableAutocorrection(true)
-                Button("MessageFilter.SaveName".i18n(lang), action: rename)
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name == savedName)
-                Picker("MessageFilter.Action".i18n(lang), selection: Binding(get: { group.action }, set: { action in
-                    var updated = group
-                    updated.action = action
-                    update(updated)
+                MessageFilterGroupNameField(editor: editor, placeholder: "MessageFilter.GroupName".i18n(lang))
+                if let error = editor.error {
+                    Text(messageFilterErrorText(error, language: lang))
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
+                Picker("MessageFilter.Action".i18n(lang), selection: Binding(get: { editor.group.action }, set: { action in
+                    editor.update { $0.action = action }
                 })) {
                     ForEach(SGMessageFilterAction.allCases, id: \.self) { action in
                         Text(action.localizationKey.i18n(lang)).tag(action)
                     }
                 }
-            }
-            Section {
-                MessageFilterKeywordInputView(newKeyword: $newKeyword, onAdd: addKeyword)
-                Button("MessageFilter.ExportGroup".i18n(lang)) { onExport(group) }
+                Button("MessageFilter.ExportGroup".i18n(lang)) {
+                    wrapperController?.view.endEditing(true)
+                    if editor.saveName() {
+                        onExport(editor.group)
+                    }
+                }
             }
             Section(header: Text("MessageFilter.Keywords.Title".i18n(lang))) {
-                ForEach(group.keywords.reversed(), id: \.self) { keyword in
+                MessageFilterKeywordInputView(newKeyword: $newKeyword, onAdd: addKeyword)
+                ForEach(editor.group.keywords.reversed(), id: \.self) { keyword in
                     Text(keyword)
                 }
                 .onDelete { offsets in
-                    var updated = group
-                    updated.keywords.remove(atOffsets: IndexSet(offsets.map { group.keywords.count - 1 - $0 }))
-                    update(updated)
+                    let keywords = editor.group.keywords
+                    let removed = Set(offsets.map { keywords[keywords.count - 1 - $0] })
+                    editor.update { $0.keywords.removeAll(where: { removed.contains($0) }) }
                 }
             }
         }
-        .navigationBarTitle(group.name, displayMode: .inline)
+        .navigationBarTitle(Text(editor.group.name), displayMode: .inline)
         .navigationBarItems(trailing: EditButton())
-        .onAppear {
-            group = initialGroup
-            savedName = initialGroup.name
-            name = initialGroup.name
+        .onDisappear {
+            wrapperController?.view.endEditing(true)
+            if !editor.saveName(), let error = editor.error {
+                onError(error)
+            }
         }
-    }
-
-    private func update(_ updated: SGMessageFilterGroup) {
-        if onSave(savedName, updated) {
-            group = updated
-            savedName = updated.name
-        }
-    }
-
-    private func rename() {
-        var updated = group
-        updated.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !updated.name.isEmpty else { return }
-        update(updated)
-        name = savedName
     }
 
     private func addKeyword() {
         let keyword = newKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty, !group.keywords.contains(keyword) else { return }
-        var updated = group
-        updated.keywords.append(keyword)
-        update(updated)
-        if group.keywords.contains(keyword) { newKeyword = "" }
+        guard !keyword.isEmpty else { return }
+        if editor.update({ group in
+            if !group.keywords.contains(keyword) {
+                group.keywords.append(keyword)
+            }
+        }) {
+            newKeyword = ""
+        }
     }
 }
 

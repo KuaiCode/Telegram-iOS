@@ -235,6 +235,111 @@ for index, before, after, boundary in mutations:
     mutated[index] = mutated[index].replace(before, after, 1)
     assert not check_history_boundaries(*mutated)[boundary], f"Missed negative control: {boundary}"
 
+def check_ui_boundaries(controller, selection):
+    """UI source contracts only; gestures and input methods still need device tests."""
+    name_changes = section(controller, "func nameChanged(", "func saveName()")
+    save_name = section(controller, "func saveName()", "func finishEditing(")
+    update = section(controller, "func update(_ change:", "private struct MessageFilterGroupNameField:")
+    detail = section(controller, "private struct MessageFilterGroupView:", "public func sgMessageFilterController(")
+    layout = section(selection, "override func updateLayout(constrainedSize:", "return size")
+    pending = section(selection, "private func updatePending()", "private func updateGroupTitle()")
+    return {
+        "fixed controls and independent scroll regions": (
+            "textScrollNode.addSubnode(textNode)" in selection
+            and "textScrollNode.insertSubnode(selection.highlightAreaNode, belowSubnode: textNode)" in selection
+            and "textScrollNode.addSubnode(selection)" in selection
+            and "keywordsScrollNode.view.addSubview(button)" in pending
+            and "keywordsScrollNode.canCancelAllTouchesInViews = true" in selection
+            and "constrainedSize.height - fixedHeight - helpSectionHeight" in layout
+            and "height: min(constrainedSize.height, y)" in layout
+            and "height: textViewportHeight" in layout
+            and "height: keywordsViewportHeight" in layout
+            and "require(toFail: textScrollNode.view.panGestureRecognizer)" in selection
+            and "require(toFail: keywordsScrollNode.view.panGestureRecognizer)" in selection
+        ),
+        "selection and scroll-position preservation": (
+            "let offset = node.view.contentOffset" in selection
+            and "min(max(0.0, offset.y), max(0.0, contentSize.height - frame.height))" in selection
+            and "textNode" not in pending and "selectionNode" not in pending
+            and "if textLayoutWidth != textWidth" in layout
+            and selection.count("private let textNode = ImmediateTextNode()") == 1
+            and "CGRect(x: 12.0, y: 12.0, width: textWidth" in layout
+        ),
+        "nested navigation owns edge swipes": (
+            "tag: group.id, selection: $selectedGroupId" in controller
+            and "disablesInteractiveTransitionGestureRecognizerNow = { selectedGroupId != nil }" in controller
+            and "disablesInteractiveTransitionGestureRecognizerNow = nil" in controller
+            and r"ForEach(configuration.groups, id: \.id)" in controller
+        ),
+        "debounced committed-text rename": (
+            "pendingRename?.cancel()" in name_changes
+            and "guard !isComposing else { return }" in name_changes
+            and "DispatchWorkItem { [weak self]" in name_changes
+            and ".now() + 0.5, execute: work" in name_changes
+            and "pendingRename?.cancel()" in save_name
+            and "guard !isComposing else { return false }" in save_name
+            and "isComposing: field.markedTextRange != nil" in controller
+            and "field.markedTextRange == nil, field.text != editor.name" in controller
+            and "guard textField.markedTextRange == nil else { return }" in controller
+            and "editor.finishEditing(textField.text ?? \"\")" in controller
+            and "@StateObject private var editor: MessageFilterGroupEditor" in detail
+            and "MessageFilter.SaveName" not in detail
+            and "initialGroup" not in detail
+            and "onError(error)" in detail
+        ),
+        "rename merges into latest configuration": (
+            "var latest = store.configuration" in update
+            and "latest.groups.firstIndex(where: { $0.name == group.name })" in update
+            and "change(&latest.groups[index])" in update
+            and "try store.update(latest)" in update
+            and update.index("try store.update(latest)") < update.index("group = store.configuration.groups[index]")
+            and "self.error = error" in update
+            and "guard !newName.isEmpty" in save_name
+            and "guard update({ $0.name = newName }) else { return false }" in save_name
+            and "renameLastUsedGroup(from: oldName, to: group.name)" in save_name
+        ),
+        "detail ordering and flush before export": (
+            detail.index('Picker("MessageFilter.Action"') < detail.index('Button("MessageFilter.ExportGroup"') < detail.index('Section(header: Text("MessageFilter.Keywords.Title"')
+            and detail.index("MessageFilterKeywordInputView(") < detail.index("ForEach(editor.group.keywords.reversed()")
+            and "wrapperController?.view.endEditing(true)\n                    if editor.saveName() {\n                        onExport(editor.group)" in detail
+            and "wrapperController?.view.endEditing(true)\n            if !editor.saveName(), let error = editor.error" in detail
+            and "let removed = Set(offsets.map { keywords[keywords.count - 1 - $0] })" in detail
+        ),
+    }
+
+
+ui_boundaries = check_ui_boundaries(sources[1], sources[2])
+assert all(ui_boundaries.values()), f"UI boundary regression: {[name for name, passed in ui_boundaries.items() if not passed]}"
+assert "import UIKitRuntimeUtils" in sources[1]
+assert '"//submodules/UIKitRuntimeUtils:UIKitRuntimeUtils"' in read("Swiftgram/SGProUI/BUILD")
+gesture_source = read("submodules/Display/Source/InteractiveTransitionGestureRecognizer.swift")
+assert "disablesInteractiveTransitionGestureRecognizerNow() {\n        return .strict" in gesture_source
+selection_source = read("submodules/TextSelectionNode/Sources/TextSelectionNode.swift")
+assert "if let scrollView = findScrollView(view: strongSelf.view)" in selection_source
+assert "scrollView.scrollRectToVisible(" in selection_source
+assert "guard names.insert(name).inserted else { throw SGMessageFilterRuleFileError.duplicateGroupName }" in rules
+ui_mutations = [
+    (1, "textScrollNode.addSubnode(textNode)", "self.addSubnode(textNode)", "fixed controls and independent scroll regions"),
+    (1, "keywordsScrollNode.canCancelAllTouchesInViews = true", "keywordsScrollNode.canCancelAllTouchesInViews = false", "fixed controls and independent scroll regions"),
+    (1, "height: min(constrainedSize.height, y)", "height: y", "fixed controls and independent scroll regions"),
+    (1, "require(toFail: textScrollNode.view.panGestureRecognizer)", "require(toFail: keywordsScrollNode.view.panGestureRecognizer)", "fixed controls and independent scroll regions"),
+    (1, "let offset = node.view.contentOffset", "let offset = CGPoint.zero", "selection and scroll-position preservation"),
+    (0, "disablesInteractiveTransitionGestureRecognizerNow = { selectedGroupId != nil }", "disablesInteractiveTransitionGestureRecognizerNow = { false }", "nested navigation owns edge swipes"),
+    (0, "guard !isComposing else { return }", "", "debounced committed-text rename"),
+    (0, "guard textField.markedTextRange == nil else { return }", "", "debounced committed-text rename"),
+    (0, "pendingRename?.cancel()\n        pendingRename = nil\n        error = nil", "pendingRename = nil\n        error = nil", "debounced committed-text rename"),
+    (0, "var latest = store.configuration", "var latest = SGMessageFilterConfiguration(groups: [group])", "rename merges into latest configuration"),
+    (0, "change(&latest.groups[index])", "latest.groups[index] = group", "rename merges into latest configuration"),
+    (0, "renameLastUsedGroup(from: oldName, to: group.name)", "renameLastUsedGroup(from: group.name, to: group.name)", "rename merges into latest configuration"),
+    (0, "if editor.saveName() {", "if true {", "detail ordering and flush before export"),
+]
+for index, before, after, boundary in ui_mutations:
+    mutated = [sources[1], sources[2]]
+    assert before in mutated[index], f"Stale UI negative control: {before}"
+    mutated[index] = mutated[index].replace(before, after, 1)
+    assert not check_ui_boundaries(*mutated)[boundary], f"Missed UI negative control: {boundary}"
+
+print(f"All {len(ui_boundaries)} UI source contracts passed; all {len(ui_mutations)} UI negative controls detected.")
 print("Message-filter source checks passed: five actions, three locales, dependencies, renderer hooks, raw album captions, pagination and reveal guards.")
 print(f"All {len(boundaries)} history boundary contracts passed; all {len(mutations)} negative controls detected.")
 print("Static checks only; Swift assertions, compilation, gestures and VoiceOver were not run.")

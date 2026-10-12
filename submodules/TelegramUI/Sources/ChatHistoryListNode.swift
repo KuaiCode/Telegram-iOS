@@ -2071,7 +2071,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             return chatMessageFilterAlbums(postbox: context.account.postbox, messages: view.entries.map(\.message))
             |> map { albums in (update, albums) }
         }
-        let historyViewUpdateUntilStopped = stopHistoryViewUpdates |> mapToSignal { value in
+        let historyViewUpdateUntilStopped = stopHistoryViewUpdates |> mapToSignal { value -> Signal<((ChatHistoryViewUpdate, Int, ChatHistoryLocationInput?, ClosedRange<Int32>?, Set<MessageId>), [Int64: [Message]]), NoError> in
             if value {
                 return .never()
             } else {

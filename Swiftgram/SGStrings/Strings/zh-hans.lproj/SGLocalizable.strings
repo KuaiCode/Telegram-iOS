@@ -200,11 +200,15 @@
 "MessageFilter.Selection.Saved" = "已添加 {count} 个关键词。";
 "MessageFilter.Selection.RemoveKeyword" = "移除关键词：{keyword}";
 "MessageFilter.SubTitle" = "移除干扰，减少包含以下关键字的消息的可见性。\n关键字区分大小写。";
-"MessageFilter.Keywords.Title" = "关键字";
+"MessageFilter.Keywords.Title" = "规则";
 "MessageFilter.InputPlaceholder" = "输入关键字";
-"MessageFilter.Groups.Description" = "按分组管理关键字，并选择命中消息的处理方式。关键字区分大小写。";
+"MessageFilter.Groups.Description" = "按分组管理关键字和带 regex: 前缀的正则规则，并选择命中消息的处理方式。关键字区分大小写。";
 "MessageFilter.Groups" = "分组";
-"MessageFilter.Groups.OrderHelp" = "点按“编辑”调整分组顺序。每个分组命中任一关键字即生效。";
+"MessageFilter.Groups.OrderHelp" = "点按“编辑”调整分组顺序。每个分组命中任一关键字或正则表达式即生效。";
+"MessageFilter.Regex.Use" = "正则表达式";
+"MessageFilter.Regex.InputPlaceholder" = "输入表达式，例如：广告|推广";
+"MessageFilter.Regex.Add" = "添加正则表达式";
+"MessageFilter.Regex.Help" = "开启后自动添加 regex: 前缀，手动输入此前缀同样按正则匹配。表达式无需两侧的 /，空格参与匹配。默认区分大小写；使用 (?i) 忽略大小写，(?s) 使 . 匹配换行。消息中任意部分命中即可触发分组；匹配超时则正常显示消息。";
 "MessageFilter.MatchingMode" = "命中多个分组时";
 "MessageFilter.MatchingMode.FirstMatch" = "按分组顺序，首次命中生效";
 "MessageFilter.MatchingMode.Strongest" = "优先级处理";
@@ -236,7 +240,7 @@
 "MessageFilter.Import.Merge" = "合并规则";
 "MessageFilter.Import.Replace" = "替换全部分组";
 "MessageFilter.Import.ReplaceEmpty" = "替换并清空现有规则";
-"MessageFilter.Export.Format" = "选择格式。JSON 保留分组、处理方式和全局设置。TXT 每行一条规则，不包含分组和处理方式。";
+"MessageFilter.Export.Format" = "选择格式。JSON 和 TXT 均保留 regex: 前缀。JSON 保留分组、处理方式和全局设置。TXT 每行一条规则，不包含分组和处理方式。";
 "MessageFilter.Export.JSON" = "JSON（完整结构）";
 "MessageFilter.Export.TXT" = "TXT（每行一条规则）";
 "MessageFilter.Cancel" = "取消";
@@ -248,6 +252,7 @@
 "MessageFilter.Error.DuplicateGroupName" = "已存在同名分组，请使用其他名称。";
 "MessageFilter.Error.EmptyKeyword" = "JSON 中的规则不能为空或仅包含空白字符。";
 "MessageFilter.Error.MultilineKeyword" = "规则中含有换行，请导出为 JSON 以完整保留规则。";
+"MessageFilter.Error.InvalidRegex" = "无效的正则规则：{rule}。请修正或删除；该规则不参与匹配。";
 "MessageFilter.Error.StoredConfiguration" = "无法读取已保存的规则。原数据已保留，为避免覆盖，暂时无法修改。";
 "MessageFilter.Error.InvalidFile" = "规则文件无效，请检查结构、分组顺序、处理方式及匹配设置。";
 "MessageFilter.Error.FileAccess" = "无法读取或写入规则文件。";

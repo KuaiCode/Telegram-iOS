@@ -37,10 +37,15 @@ struct MessageFilterKeywordInputView: View {
     @Environment(\.lang) var lang: String
     @Binding var newKeyword: String
     let onAdd: () -> Void
+    var isRegularExpression = false
+
+    private var isEmpty: Bool {
+        return isRegularExpression ? newKeyword.isEmpty : SGMessageFilterRule.normalized(newKeyword).isEmpty
+    }
 
     var body: some View {
         HStack {
-            TextField("MessageFilter.InputPlaceholder".i18n(lang), text: $newKeyword)
+            TextField((isRegularExpression ? "MessageFilter.Regex.InputPlaceholder" : "MessageFilter.InputPlaceholder").i18n(lang), text: $newKeyword)
                 .disableAutocorrection(true)
                 .autocapitalization(.none)
                 .keyboardType(.default)
@@ -49,11 +54,11 @@ struct MessageFilterKeywordInputView: View {
             
             Button(action: onAdd) {
                 Image(systemName: "plus.circle.fill")
-                    .foregroundColor(newKeyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .secondary : .accentColor)
+                    .foregroundColor(isEmpty ? .secondary : .accentColor)
                     .imageScale(.large)
             }
-            .accessibility(label: Text("MessageFilter.AddKeyword".i18n(lang)))
-            .disabled(newKeyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibility(label: Text((isRegularExpression ? "MessageFilter.Regex.Add" : "MessageFilter.AddKeyword").i18n(lang)))
+            .disabled(isEmpty)
             .buttonStyle(PlainButtonStyle())
         }
     }
@@ -378,6 +383,8 @@ private func messageFilterErrorText(_ error: Error, language: String) -> String 
         case .duplicateGroupName: key = "MessageFilter.Error.DuplicateGroupName"
         case .emptyKeyword: key = "MessageFilter.Error.EmptyKeyword"
         case .multilineKeyword: key = "MessageFilter.Error.MultilineKeyword"
+        case let .invalidRegularExpression(rule):
+            return "MessageFilter.Error.InvalidRegex".i18n(language).replacingOccurrences(of: "{rule}", with: rule)
         case .unreadableStoredConfiguration: key = "MessageFilter.Error.StoredConfiguration"
         case .invalidFile, .invalidGroupID, .duplicateGroupID: key = "MessageFilter.Error.InvalidFile"
         }
@@ -523,11 +530,16 @@ private struct MessageFilterGroupNameField: UIViewRepresentable {
     }
 }
 
+private extension String {
+    var messageFilterRuleIdentity: Data { SGMessageFilterRule.identity(self) }
+}
+
 @available(iOS 13.0, *)
 private struct MessageFilterGroupView: View {
     @Environment(\.lang) var lang: String
     @StateObject private var editor: MessageFilterGroupEditor
     @State private var newKeyword = ""
+    @State private var isRegularExpression = false
     weak var wrapperController: LegacyController?
     let onError: (Error) -> Void
     let onExport: (SGMessageFilterGroup) -> Void
@@ -562,15 +574,23 @@ private struct MessageFilterGroupView: View {
                     }
                 }
             }
-            Section(header: Text("MessageFilter.Keywords.Title".i18n(lang))) {
-                MessageFilterKeywordInputView(newKeyword: $newKeyword, onAdd: addKeyword)
-                ForEach(editor.group.keywords.reversed(), id: \.self) { keyword in
-                    Text(keyword)
+            Section(header: Text("MessageFilter.Keywords.Title".i18n(lang)), footer: Text("MessageFilter.Regex.Help".i18n(lang))) {
+                Toggle("MessageFilter.Regex.Use".i18n(lang), isOn: $isRegularExpression)
+                MessageFilterKeywordInputView(newKeyword: $newKeyword, onAdd: addKeyword, isRegularExpression: isRegularExpression)
+                ForEach(editor.group.keywords.reversed(), id: \.messageFilterRuleIdentity) { keyword in
+                    VStack(alignment: .leading, spacing: 4.0) {
+                        Text(keyword)
+                        if let error = SGMessageFilterRule.validationError(for: keyword) {
+                            Text(messageFilterErrorText(error, language: lang))
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                        }
+                    }
                 }
                 .onDelete { offsets in
                     let keywords = editor.group.keywords
-                    let removed = Set(offsets.map { keywords[keywords.count - 1 - $0] })
-                    editor.update { $0.keywords.removeAll(where: { removed.contains($0) }) }
+                    let removed = Set(offsets.map { SGMessageFilterRule.identity(keywords[keywords.count - 1 - $0]) })
+                    editor.update { $0.keywords.removeAll(where: { removed.contains(SGMessageFilterRule.identity($0)) }) }
                 }
             }
         }
@@ -585,14 +605,17 @@ private struct MessageFilterGroupView: View {
     }
 
     private func addKeyword() {
-        let keyword = newKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyword = isRegularExpression ? SGMessageFilterRule.regularExpressionPrefix + newKeyword : SGMessageFilterRule.normalized(newKeyword)
         guard !keyword.isEmpty else { return }
-        if editor.update({ group in
-            if !group.keywords.contains(keyword) {
-                group.keywords.append(keyword)
-            }
-        }) {
+        if let error = SGMessageFilterRule.validationError(for: keyword) {
+            onError(error)
+            return
+        }
+        if editor.update({ $0.keywords.append(keyword) }) {
             newKeyword = ""
+            isRegularExpression = false
+        } else if let error = editor.error {
+            onError(error)
         }
     }
 }

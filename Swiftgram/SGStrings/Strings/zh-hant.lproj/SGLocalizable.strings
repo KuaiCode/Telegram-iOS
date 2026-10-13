@@ -200,11 +200,15 @@
 "MessageFilter.Selection.Saved" = "已新增 {count} 個關鍵詞。";
 "MessageFilter.Selection.RemoveKeyword" = "移除關鍵詞：{keyword}";
 "MessageFilter.SubTitle" = "移除干擾並減少包含以下關鍵字的訊息的可見性。\n關鍵字區分大小寫。";
-"MessageFilter.Keywords.Title" = "關鍵字";
+"MessageFilter.Keywords.Title" = "規則";
 "MessageFilter.InputPlaceholder" = "輸入關鍵字";
-"MessageFilter.Groups.Description" = "按分組管理關鍵字，並選擇命中訊息的處理方式。關鍵字區分大小寫。";
+"MessageFilter.Groups.Description" = "按分組管理關鍵字和帶 regex: 前綴的正規表示式規則，並選擇命中訊息的處理方式。關鍵字區分大小寫。";
 "MessageFilter.Groups" = "分組";
-"MessageFilter.Groups.OrderHelp" = "點按「編輯」調整分組順序。每個分組命中任一關鍵字即生效。";
+"MessageFilter.Groups.OrderHelp" = "點按「編輯」調整分組順序。每個分組命中任一關鍵字或正規表示式即生效。";
+"MessageFilter.Regex.Use" = "正規表示式";
+"MessageFilter.Regex.InputPlaceholder" = "輸入表示式，例如：廣告|推廣";
+"MessageFilter.Regex.Add" = "新增正規表示式";
+"MessageFilter.Regex.Help" = "開啟後自動新增 regex: 前綴，手動輸入此前綴同樣按正規表示式匹配。表示式無需兩側的 /，空格參與匹配。預設區分大小寫；使用 (?i) 忽略大小寫，(?s) 使 . 匹配換行。訊息中任意部分命中即可觸發分組；匹配逾時則正常顯示訊息。";
 "MessageFilter.MatchingMode" = "命中多個分組時";
 "MessageFilter.MatchingMode.FirstMatch" = "依分組順序，首次命中生效";
 "MessageFilter.MatchingMode.Strongest" = "優先級處理";
@@ -236,7 +240,7 @@
 "MessageFilter.Import.Merge" = "合併規則";
 "MessageFilter.Import.Replace" = "取代全部分組";
 "MessageFilter.Import.ReplaceEmpty" = "取代並清空現有規則";
-"MessageFilter.Export.Format" = "選擇格式。JSON 保留分組、處理方式和全域設定。TXT 每行一條規則，不包含分組和處理方式。";
+"MessageFilter.Export.Format" = "選擇格式。JSON 和 TXT 均保留 regex: 前綴。JSON 保留分組、處理方式和全域設定。TXT 每行一條規則，不包含分組和處理方式。";
 "MessageFilter.Export.JSON" = "JSON（完整結構）";
 "MessageFilter.Export.TXT" = "TXT（每行一條規則）";
 "MessageFilter.Cancel" = "取消";
@@ -248,6 +252,7 @@
 "MessageFilter.Error.DuplicateGroupName" = "已存在同名分組，請使用其他名稱。";
 "MessageFilter.Error.EmptyKeyword" = "JSON 中的規則不能為空或僅包含空白字元。";
 "MessageFilter.Error.MultilineKeyword" = "規則中含有換行，請匯出為 JSON 以完整保留規則。";
+"MessageFilter.Error.InvalidRegex" = "無效的正規表示式規則：{rule}。請修正或刪除；該規則不參與匹配。";
 "MessageFilter.Error.StoredConfiguration" = "無法讀取已儲存的規則。原資料已保留，為避免覆蓋，暫時無法修改。";
 "MessageFilter.Error.InvalidFile" = "規則檔案無效，請檢查結構、分組順序、處理方式及比對設定。";
 "MessageFilter.Error.FileAccess" = "無法讀取或寫入規則檔案。";

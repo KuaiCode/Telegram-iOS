@@ -114,6 +114,13 @@ def check_history_boundaries(state, history, base):
     range_callback = section(history, "private func processDisplayedItemRangeChanged(", "private func updateHistoryPagination(")
     pagination = section(history, "private func updateHistoryPagination(", "private func updateMessageReadTracker()")
     return {
+        "shared regex deadline": (
+            processing.count("let matchingDeadline:") == 1
+            and "configuration.hasRegularExpressions" in processing
+            and "ProcessInfo.processInfo.systemUptime + SGMessageFilterRule.matchingTimeLimit : nil" in processing
+            and processing.index("let matchingDeadline:") < processing.index("for (key, messages) in messagesByKey")
+            and r"self.configuration.match(for: messages.map(\.text), deadline: matchingDeadline)" in processing
+        ),
         "hidden-page navigation": (
             "historyView.hasHiddenMessages, historyView.filteredEntries.isEmpty" in anchor
             and "historyView.originalView.entries.last?.message" in anchor
@@ -214,6 +221,7 @@ assert "return lhs.range == rhs.range && lhs.type == rhs.type" in entity_type
 
 # Negative controls ensure each boundary check detects removal of its protection.
 mutations = [
+    (0, "deadline: matchingDeadline", "deadline: nil", "shared regex deadline"),
     (1, "historyView.originalView.entries.last?.message {", "historyView.filteredEntries.last?.message {", "hidden-page navigation"),
     (0, "messagesByKey[.album(groupId)] = messages", "messagesByKey[.album(groupId)] = []", "complete boundary albums"),
     (2, "self.invalidateMessageFilterDust()", "self.removeMessageFilterCover()", "opaque cover during asynchronous reuse"),
@@ -241,9 +249,20 @@ def check_ui_boundaries(controller, selection):
     save_name = section(controller, "func saveName()", "func finishEditing(")
     update = section(controller, "func update(_ change:", "private struct MessageFilterGroupNameField:")
     detail = section(controller, "private struct MessageFilterGroupView:", "public func sgMessageFilterController(")
+    add_rule = section(detail, "private func addKeyword()", "newKeyword = \"\"")
     layout = section(selection, "override func updateLayout(constrainedSize:", "return size")
     pending = section(selection, "private func updatePending()", "private func updateGroupTitle()")
     return {
+        "regex entry validates and resets only on success": (
+            "@State private var isRegularExpression = false" in detail
+            and 'Toggle("MessageFilter.Regex.Use"' in detail
+            and "isRegularExpression ? SGMessageFilterRule.regularExpressionPrefix + newKeyword : SGMessageFilterRule.normalized(newKeyword)" in add_rule
+            and "SGMessageFilterRule.validationError(for: keyword)" in add_rule
+            and add_rule.index("SGMessageFilterRule.validationError(for: keyword)") < add_rule.index("if editor.update(")
+            and "onError(error)\n            return" in add_rule
+            and 'newKeyword = ""\n            isRegularExpression = false\n        } else if let error = editor.error' in detail
+            and "if let error = SGMessageFilterRule.validationError(for: keyword) {\n                            Text(messageFilterErrorText(error, language: lang))" in detail
+        ),
         "fixed controls and independent scroll regions": (
             "textScrollNode.addSubnode(textNode)" in selection
             and "textScrollNode.insertSubnode(selection.highlightAreaNode, belowSubnode: textNode)" in selection
@@ -303,7 +322,9 @@ def check_ui_boundaries(controller, selection):
             and detail.index("MessageFilterKeywordInputView(") < detail.index("ForEach(editor.group.keywords.reversed()")
             and "wrapperController?.view.endEditing(true)\n                    if editor.saveName() {\n                        onExport(editor.group)" in detail
             and "wrapperController?.view.endEditing(true)\n            if !editor.saveName(), let error = editor.error" in detail
-            and "let removed = Set(offsets.map { keywords[keywords.count - 1 - $0] })" in detail
+            and r"ForEach(editor.group.keywords.reversed(), id: \.messageFilterRuleIdentity)" in detail
+            and "let removed = Set(offsets.map { SGMessageFilterRule.identity(keywords[keywords.count - 1 - $0]) })" in detail
+            and "removed.contains(SGMessageFilterRule.identity($0))" in detail
         ),
     }
 
@@ -319,6 +340,8 @@ assert "if let scrollView = findScrollView(view: strongSelf.view)" in selection_
 assert "scrollView.scrollRectToVisible(" in selection_source
 assert "guard names.insert(name).inserted else { throw SGMessageFilterRuleFileError.duplicateGroupName }" in rules
 ui_mutations = [
+    (0, 'newKeyword = ""\n            isRegularExpression = false', 'newKeyword = ""\n            isRegularExpression = true', "regex entry validates and resets only on success"),
+    (0, "onError(error)\n            return", "onError(error)", "regex entry validates and resets only on success"),
     (1, "textScrollNode.addSubnode(textNode)", "self.addSubnode(textNode)", "fixed controls and independent scroll regions"),
     (1, "keywordsScrollNode.canCancelAllTouchesInViews = true", "keywordsScrollNode.canCancelAllTouchesInViews = false", "fixed controls and independent scroll regions"),
     (1, "height: min(constrainedSize.height, y)", "height: y", "fixed controls and independent scroll regions"),

@@ -220,11 +220,15 @@
 "MessageFilter.Selection.Saved" = "Added {count} keywords.";
 "MessageFilter.Selection.RemoveKeyword" = "Remove keyword: {keyword}";
 "MessageFilter.SubTitle" = "Remove distractions and reduce visibility of messages containing keywords below.\nKeywords are case-sensitive.";
-"MessageFilter.Keywords.Title" = "Keywords";
+"MessageFilter.Keywords.Title" = "Rules";
 "MessageFilter.InputPlaceholder" = "Enter keyword";
-"MessageFilter.Groups.Description" = "Organize case-sensitive keywords into groups and choose how matching messages are displayed.";
+"MessageFilter.Groups.Description" = "Organize keywords and regex: rules into groups and choose how matching messages are displayed. Keywords are case-sensitive.";
 "MessageFilter.Groups" = "Groups";
-"MessageFilter.Groups.OrderHelp" = "Tap Edit to reorder groups. Each group matches any of its keywords.";
+"MessageFilter.Groups.OrderHelp" = "Tap Edit to reorder groups. Each group matches any of its keywords or regular expressions.";
+"MessageFilter.Regex.Use" = "Regular Expression";
+"MessageFilter.Regex.InputPlaceholder" = "Enter a pattern, e.g. sale|promo";
+"MessageFilter.Regex.Add" = "Add Regular Expression";
+"MessageFilter.Regex.Help" = "Enable Regular Expression to add the regex: prefix automatically. A manually entered prefix also enables regex matching. Enter patterns without / delimiters; spaces are significant. Matching is case-sensitive; use (?i) to ignore case or (?s) to let . match line breaks. Any matching part triggers the group. Messages remain visible if matching times out.";
 "MessageFilter.MatchingMode" = "Multiple Matching Groups";
 "MessageFilter.MatchingMode.FirstMatch" = "First Matching Group";
 "MessageFilter.MatchingMode.Strongest" = "Action Priority";
@@ -256,7 +260,7 @@
 "MessageFilter.Import.Merge" = "Merge Rules";
 "MessageFilter.Import.Replace" = "Replace All Groups";
 "MessageFilter.Import.ReplaceEmpty" = "Replace and Clear Existing Rules";
-"MessageFilter.Export.Format" = "Choose a format. JSON preserves groups, actions and the global setting. TXT contains one rule per line, without groups or actions.";
+"MessageFilter.Export.Format" = "Choose a format. Both JSON and TXT preserve regex: prefixes. JSON preserves groups, actions and the global setting. TXT contains one rule per line, without groups or actions.";
 "MessageFilter.Export.JSON" = "JSON — All Settings";
 "MessageFilter.Export.TXT" = "TXT — One Rule per Line";
 "MessageFilter.Cancel" = "Cancel";
@@ -268,6 +272,7 @@
 "MessageFilter.Error.DuplicateGroupName" = "A group with this name already exists. Choose another name.";
 "MessageFilter.Error.EmptyKeyword" = "JSON rules cannot be empty or contain only whitespace.";
 "MessageFilter.Error.MultilineKeyword" = "A rule contains a line break. Export as JSON to preserve it.";
+"MessageFilter.Error.InvalidRegex" = "Invalid regular expression: {rule}. Correct or remove this rule; it is not used for matching.";
 "MessageFilter.Error.StoredConfiguration" = "Saved rules could not be read. The stored data has been preserved; changes are disabled to avoid overwriting it.";
 "MessageFilter.Error.InvalidFile" = "The rule file is invalid. Check its structure, group order, actions and matching setting.";
 "MessageFilter.Error.FileAccess" = "Unable to read or write the rule file.";

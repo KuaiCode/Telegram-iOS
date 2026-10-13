@@ -62,11 +62,90 @@ public enum SGMessageFilterRuleFileError: Error, Equatable {
     case duplicateGroupID
     case emptyKeyword
     case multilineKeyword
+    case invalidRegularExpression(String)
     case unreadableStoredConfiguration
 }
 
 public enum SGMessageFilterKeywordError: Error, Equatable {
     case targetGroupMissing
+}
+
+public enum SGMessageFilterRule {
+    public static let regularExpressionPrefix = "regex:"
+    public static let matchingTimeLimit: TimeInterval = 0.05
+
+    private final class CompiledExpression {
+        let expression: NSRegularExpression?
+
+        init(pattern: String) {
+            self.expression = pattern.isEmpty ? nil : (try? NSRegularExpression(pattern: pattern))
+        }
+    }
+
+    private static let expressions: NSCache<NSData, CompiledExpression> = {
+        let cache = NSCache<NSData, CompiledExpression>()
+        cache.countLimit = 256
+        return cache
+    }()
+
+    public static func isRegularExpression(_ rule: String) -> Bool {
+        return rule.utf8.starts(with: regularExpressionPrefix.utf8)
+    }
+
+    public static func identity(_ rule: String) -> Data {
+        // ICU distinguishes canonically equivalent patterns; literal keywords keep Swift's equality.
+        return Data((isRegularExpression(rule) ? rule : rule.precomposedStringWithCanonicalMapping).utf8)
+    }
+
+    public static func normalized(_ rule: String) -> String {
+        return isRegularExpression(rule) ? rule : rule.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func expression(for rule: String) -> NSRegularExpression? {
+        let key = identity(rule) as NSData
+        if let cached = expressions.object(forKey: key) {
+            return cached.expression
+        }
+        let pattern = String(decoding: rule.utf8.dropFirst(regularExpressionPrefix.utf8.count), as: UTF8.self)
+        let cached = CompiledExpression(pattern: pattern)
+        expressions.setObject(cached, forKey: key)
+        return cached.expression
+    }
+
+    public static func validationError(for rule: String) -> SGMessageFilterRuleFileError? {
+        if isRegularExpression(rule), expression(for: rule) == nil {
+            return .invalidRegularExpression(rule)
+        }
+        return nil
+    }
+
+    // nil means evaluation could not finish; the entire message must remain visible.
+    fileprivate static func matches(_ rule: String, texts: [String], deadline: TimeInterval) -> Bool? {
+        guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+        guard !rule.isEmpty else { return false }
+        guard isRegularExpression(rule) else {
+            return texts.contains(where: { $0.contains(rule) })
+        }
+        guard let expression = expression(for: rule) else { return false }
+        for text in texts {
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            var matched = false
+            var interrupted = false
+            // shortcut: progress callbacks give an approximate deadline; strict isolation would require a different engine.
+            expression.enumerateMatches(in: text, options: .reportProgress, range: NSRange(text.startIndex ..< text.endIndex, in: text)) { result, flags, stop in
+                if ProcessInfo.processInfo.systemUptime >= deadline || flags.contains(.internalError) {
+                    interrupted = true
+                    stop.pointee = true
+                } else if result != nil {
+                    matched = true
+                    stop.pointee = true
+                }
+            }
+            guard !interrupted, ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            if matched { return true }
+        }
+        return false
+    }
 }
 
 public struct SGMessageFilterGroup: Codable, Equatable {
@@ -80,6 +159,11 @@ public struct SGMessageFilterGroup: Codable, Equatable {
         self.name = name
         self.action = action
         self.keywords = keywords
+    }
+
+    public static func == (lhs: SGMessageFilterGroup, rhs: SGMessageFilterGroup) -> Bool {
+        return lhs.id == rhs.id && lhs.name == rhs.name && lhs.action == rhs.action
+            && lhs.keywords.map(SGMessageFilterRule.identity) == rhs.keywords.map(SGMessageFilterRule.identity)
     }
 }
 
@@ -96,11 +180,24 @@ public struct SGMessageFilterConfiguration: Codable, Equatable {
         return self.match(for: [text])?.action
     }
 
-    public func match(for texts: [String]) -> SGMessageFilterMatch? {
+    public var hasRegularExpressions: Bool {
+        return groups.contains(where: { $0.keywords.contains(where: SGMessageFilterRule.isRegularExpression) })
+    }
+
+    public func match(for texts: [String], deadline: TimeInterval? = nil) -> SGMessageFilterMatch? {
+        let deadline = deadline ?? (hasRegularExpressions ? ProcessInfo.processInfo.systemUptime + SGMessageFilterRule.matchingTimeLimit : .infinity)
         var result: SGMessageFilterMatch?
-        for group in groups where group.keywords.contains(where: { keyword in
-            !keyword.isEmpty && texts.contains(where: { $0.contains(keyword) })
-        }) {
+        for group in groups {
+            var matched = false
+            for keyword in group.keywords {
+                guard let matches = SGMessageFilterRule.matches(keyword, texts: texts, deadline: deadline) else { return nil }
+                if matches {
+                    matched = true
+                    break
+                }
+            }
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            guard matched else { continue }
             let match = SGMessageFilterMatch(action: group.action, groupName: group.name)
             if matchingMode == .firstMatch {
                 return match
@@ -121,12 +218,12 @@ public struct SGMessageFilterConfiguration: Codable, Equatable {
             guard names.insert(name).inserted else { throw SGMessageFilterRuleFileError.duplicateGroupName }
             result.groups[index].id = index + 1
             result.groups[index].name = name
-            var seen = Set<String>()
+            var seen = Set<Data>()
             var keywords: [String] = []
             for keyword in result.groups[index].keywords {
-                let keyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+                let keyword = SGMessageFilterRule.normalized(keyword)
                 guard !keyword.isEmpty else { throw SGMessageFilterRuleFileError.emptyKeyword }
-                if seen.insert(keyword).inserted {
+                if seen.insert(SGMessageFilterRule.identity(keyword)).inserted {
                     keywords.append(keyword)
                 }
             }
@@ -143,8 +240,8 @@ public struct SGMessageFilterConfiguration: Codable, Equatable {
         }
         for group in imported.groups {
             if let index = indices[group.name] {
-                var seen = Set(result.groups[index].keywords)
-                result.groups[index].keywords.append(contentsOf: group.keywords.filter { seen.insert($0).inserted })
+                var seen = Set(result.groups[index].keywords.map(SGMessageFilterRule.identity))
+                result.groups[index].keywords.append(contentsOf: group.keywords.filter { seen.insert(SGMessageFilterRule.identity($0)).inserted })
             } else {
                 indices[group.name] = result.groups.count
                 result.groups.append(group)
@@ -180,32 +277,44 @@ public enum SGMessageFilterRuleFile {
 
     public static func decode(data: Data, format: SGMessageFilterFileFormat, groupName: String = "Imported") throws -> SGMessageFilterConfiguration {
         guard data.count <= maximumFileSize else { throw SGMessageFilterRuleFileError.fileTooLarge }
+        let configuration: SGMessageFilterConfiguration
         switch format {
         case .json:
-            let configuration: SGMessageFilterConfiguration
-            do {
-                configuration = try JSONDecoder().decode(SGMessageFilterConfiguration.self, from: data)
-            } catch {
-                throw SGMessageFilterRuleFileError.invalidFile
-            }
-            var ids = Set<Int>()
-            for group in configuration.groups {
-                guard group.id > 0 else { throw SGMessageFilterRuleFileError.invalidGroupID }
-                guard ids.insert(group.id).inserted else { throw SGMessageFilterRuleFileError.duplicateGroupID }
-            }
-            var result = configuration
-            result.groups.sort { $0.id < $1.id }
-            return try result.normalized()
+            configuration = try decodeStored(data: data)
         case .txt:
             guard var text = String(data: data, encoding: .utf8) else { throw SGMessageFilterRuleFileError.invalidFile }
             if text.hasPrefix("\u{feff}") {
                 text.removeFirst()
             }
             let keywords = text.components(separatedBy: .newlines).map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                SGMessageFilterRule.normalized($0)
             }.filter { !$0.isEmpty }
-            return try SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: groupName, keywords: keywords)]).normalized()
+            configuration = try SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: groupName, keywords: keywords)]).normalized()
         }
+        for group in configuration.groups {
+            for rule in group.keywords {
+                if let error = SGMessageFilterRule.validationError(for: rule) { throw error }
+            }
+        }
+        return configuration
+    }
+
+    // Stored invalid expressions stay editable; imports must pass the stricter decode above.
+    fileprivate static func decodeStored(data: Data) throws -> SGMessageFilterConfiguration {
+        guard data.count <= maximumFileSize else { throw SGMessageFilterRuleFileError.fileTooLarge }
+        var configuration: SGMessageFilterConfiguration
+        do {
+            configuration = try JSONDecoder().decode(SGMessageFilterConfiguration.self, from: data)
+        } catch {
+            throw SGMessageFilterRuleFileError.invalidFile
+        }
+        var ids = Set<Int>()
+        for group in configuration.groups {
+            guard group.id > 0 else { throw SGMessageFilterRuleFileError.invalidGroupID }
+            guard ids.insert(group.id).inserted else { throw SGMessageFilterRuleFileError.duplicateGroupID }
+        }
+        configuration.groups.sort { $0.id < $1.id }
+        return try configuration.normalized()
     }
 
     public static func encode(configuration: SGMessageFilterConfiguration, format: SGMessageFilterFileFormat) throws -> Data {
@@ -217,12 +326,12 @@ public enum SGMessageFilterRuleFile {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             data = try encoder.encode(configuration)
         case .txt:
-            var seen = Set<String>()
+            var seen = Set<Data>()
             var keywords: [String] = []
             for group in configuration.groups {
                 for keyword in group.keywords {
                     guard keyword.rangeOfCharacter(from: .newlines) == nil else { throw SGMessageFilterRuleFileError.multilineKeyword }
-                    if seen.insert(keyword).inserted {
+                    if seen.insert(SGMessageFilterRule.identity(keyword)).inserted {
                         keywords.append(keyword)
                     }
                 }
@@ -248,7 +357,7 @@ public final class SGMessageFilterStore: NSObject {
         do {
             if let stored = userDefaults.object(forKey: Self.configurationKey) {
                 guard let data = stored as? Data else { throw SGMessageFilterRuleFileError.invalidFile }
-                self.cachedConfiguration = try SGMessageFilterRuleFile.decode(data: data, format: .json)
+                self.cachedConfiguration = try SGMessageFilterRuleFile.decodeStored(data: data)
             } else {
                 let keywords: [String]
                 if let legacy = userDefaults.object(forKey: "messageFilterKeywords") {
@@ -302,7 +411,11 @@ public final class SGMessageFilterStore: NSObject {
     }
 
     public func appendKeywords(_ keywords: [String], toGroupNamed groupName: String?, defaultGroupName: String) throws -> Int {
-        let keywords = Self.normalizedKeywords(keywords)
+        let keywords = Self.normalizedKeywords(keywords).map { keyword in
+            return SGMessageFilterRule.isRegularExpression(keyword)
+                ? SGMessageFilterRule.regularExpressionPrefix + NSRegularExpression.escapedPattern(for: keyword)
+                : keyword
+        }
         guard !keywords.isEmpty else { return 0 }
         let addedCount: Int
         do {
@@ -321,8 +434,8 @@ public final class SGMessageFilterStore: NSObject {
             } else {
                 throw SGMessageFilterKeywordError.targetGroupMissing
             }
-            let existing = Set(updated.groups[index].keywords)
-            let additions = keywords.filter { !existing.contains($0) }
+            let existing = Set(updated.groups[index].keywords.map(SGMessageFilterRule.identity))
+            let additions = keywords.filter { !existing.contains(SGMessageFilterRule.identity($0)) }
             guard !additions.isEmpty else { return 0 }
             updated.groups[index].keywords.append(contentsOf: additions)
             _ = try updateLocked(updated)
@@ -360,6 +473,12 @@ public final class SGMessageFilterStore: NSObject {
         }
         let configuration = try configuration.normalized()
         let data = try SGMessageFilterRuleFile.encode(configuration: configuration, format: .json)
+        let existing = Set(cachedConfiguration.groups.flatMap { $0.keywords }.map(SGMessageFilterRule.identity))
+        for group in configuration.groups {
+            for rule in group.keywords where !existing.contains(SGMessageFilterRule.identity(rule)) {
+                if let error = SGMessageFilterRule.validationError(for: rule) { throw error }
+            }
+        }
         let changed = configuration != cachedConfiguration
         if changed {
             userDefaults.set(data, forKey: Self.configurationKey)

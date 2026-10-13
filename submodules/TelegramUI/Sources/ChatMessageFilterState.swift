@@ -110,6 +110,8 @@ final class ChatMessageFilterState {
             messagesByKey[.album(groupId)] = messages
         }
         var results: [Key: (SGMessageFilterMatch?, Bool)] = [:]
+        let matchingDeadline: TimeInterval? = configuration.hasRegularExpressions
+            ? ProcessInfo.processInfo.systemUptime + SGMessageFilterRule.matchingTimeLimit : nil
         for (key, messages) in messagesByKey {
             let previousContents = self.contents[key]
             var contentChanged = previousContents?.count != messages.count
@@ -133,7 +135,7 @@ final class ChatMessageFilterState {
             }
             var match: SGMessageFilterMatch?
             if canFilter && !configuration.groups.isEmpty && (SGFeaturePolicy.isFreeEdition || SGSimpleSettings.shared.ephemeralStatus > 1) {
-                match = self.configuration.match(for: messages.map(\.text))
+                match = self.configuration.match(for: messages.map(\.text), deadline: matchingDeadline)
             }
             if contentChanged || self.matches[key] != match || self.generations[key] == nil {
                 self.revealed.remove(key)

@@ -321,4 +321,213 @@ func testKeywordSelection() throws {
 
 try testKeywordSelection()
 
-print("Message filter matching, groups, JSON/TXT codecs, limits, merging, migration, persistence and keyword selection checks passed.")
+func testRegexMatching() {
+    for (rule, text, expected) in [
+        ("example.com", "exampleXcom", false),
+        ("C++", "C++ guide", true),
+        ("sale.*", "sale today", false),
+        ("REGEX:sale.*", "sale today", false),
+        ("REGEX:sale.*", "REGEX:sale.*", true),
+        ("/sale/", "/sale/", true),
+        (#"regex:\bsale\d+\b"#, "today sale123!", true),
+        (#"regex:\bsale\d+\b"#, "wholesale123", false),
+        (#"regex:\bsale\d+\b"#, "SALE123", false),
+        ("regex:(?i)sale|promo", "PROMO", true),
+        (#"regex:^📢广告\d+$"#, "📢广告42", true),
+        (#"regex:^📢广告\d+$"#, "📢广告", false),
+        ("regex:e\u{301}", "prefix e\u{301} suffix", true),
+        ("regex:first.*second", "first\nsecond", false),
+        ("regex:(?s)first.*second", "first\nsecond", true),
+        ("regex:(?m)^sale$", "first\nsale\nlast", true),
+        ("regex:^$", "", true),
+        (#"regex:\d "#, "7 ", true),
+        (#"regex:\d "#, "7", false),
+        ("regex: ", " ", true),
+        ("regex:[", "anything", false),
+        ("regex:", "anything", false)
+    ] {
+        let configuration = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Rules", keywords: [rule])])
+        assert((configuration.action(for: text) != nil) == expected, "Unexpected result for \(rule) in \(text)")
+        assert(configuration.match(for: []) == nil)
+    }
+    let album = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Album", action: .hide, keywords: [#"regex:^📢广告\d+$"#, "literal.*"])])
+    assert(album.match(for: ["ordinary", "📢广告42"])?.action == .hide)
+    assert(album.match(for: ["📢广告", "42"]) == nil)
+    assert(album.action(for: "literal.*") == .hide)
+    assert(album.action(for: "literal text") == nil)
+    for (priority, action) in actionPriority.enumerated() {
+        for (otherPriority, otherAction) in actionPriority.enumerated() {
+            let regex = SGMessageFilterGroup(name: "Regex", action: action, keywords: ["regex:^match$"])
+            let literal = SGMessageFilterGroup(id: 2, name: "Literal", action: otherAction, keywords: ["match"])
+            var configuration = SGMessageFilterConfiguration(groups: [regex, literal])
+            assert(configuration.match(for: ["match"])?.groupName == "Regex")
+            configuration.matchingMode = .strongest
+            let expected = priority >= otherPriority ? regex : literal
+            assert(configuration.match(for: ["match"]) == SGMessageFilterMatch(action: expected.action, groupName: expected.name))
+        }
+    }
+    DispatchQueue.concurrentPerform(iterations: 40) { _ in
+        let configuration = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Concurrent", keywords: ["regex:(?i)sale"])])
+        assert(configuration.match(for: ["SALE"], deadline: .infinity)?.action == .dim)
+    }
+}
+
+func testRegexFilesAndPersistence() throws {
+    let rules = ["ordinary", #"regex:\d "#, "regex: lead ", "regex: ", #"regex:(?s)first\nsecond"#]
+    let configuration = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Rules", keywords: rules)])
+    assert(try! configuration.normalized().groups[0].keywords == rules)
+    for format in [SGMessageFilterFileFormat.json, .txt] {
+        let data = try SGMessageFilterRuleFile.encode(configuration: configuration, format: format)
+        assert(try! SGMessageFilterRuleFile.decode(data: data, format: format, groupName: "Rules") == configuration)
+    }
+    let txt = Data("\u{feff} ordinary \r\nregex: lead \r\nregex: \r\n".utf8)
+    assert(try! SGMessageFilterRuleFile.decode(data: txt, format: .txt).groups[0].keywords == ["ordinary", "regex: lead ", "regex: "])
+    let multiline = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Multiline", keywords: ["regex:first\nsecond"])])
+    let json = try SGMessageFilterRuleFile.encode(configuration: multiline, format: .json)
+    assert(try! SGMessageFilterRuleFile.decode(data: json, format: .json) == multiline)
+    expectError(.multilineKeyword) { _ = try SGMessageFilterRuleFile.encode(configuration: multiline, format: .txt) }
+    let merged = configuration.merging(SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Rules", action: .allow, keywords: [rules[1], "regex:extra$"])]))
+    assert(merged.groups[0].keywords == rules + ["regex:extra$"])
+    assert(merged.groups[0].action == .dim)
+
+    let suite = "MessageFilterRegexTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = SGMessageFilterStore(userDefaults: defaults)
+    try store.update(configuration)
+    assert(SGMessageFilterStore(userDefaults: defaults).configuration == configuration)
+    let saved = defaults.data(forKey: "messageFilterGroups")
+    for rule in ["regex:", "regex:[", "regex:(", #"regex:\"#] {
+        assert(SGMessageFilterRule.validationError(for: rule) == .invalidRegularExpression(rule))
+        let invalid = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Invalid", keywords: [rule])])
+        expectError(.invalidRegularExpression(rule)) { try store.update(invalid) }
+        for format in [SGMessageFilterFileFormat.json, .txt] {
+            let data = try SGMessageFilterRuleFile.encode(configuration: invalid, format: format)
+            expectError(.invalidRegularExpression(rule)) { _ = try SGMessageFilterRuleFile.decode(data: data, format: format) }
+        }
+        assert(store.configuration == configuration)
+        assert(defaults.data(forKey: "messageFilterGroups") == saved)
+    }
+    // Selected text must stay literal even if it looks like a prefixed expression.
+    let selection = #"regex:a+b["#
+    assert(try! store.appendKeywords([selection, selection], toGroupNamed: "Rules", defaultGroupName: "Default") == 1)
+    assert(try! store.appendKeywords([selection], toGroupNamed: "Rules", defaultGroupName: "Default") == 0)
+    let selectedRule = store.configuration.groups[0].keywords.last!
+    assert(selectedRule == "regex:" + NSRegularExpression.escapedPattern(for: selection))
+    let selected = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Selection", keywords: [selectedRule])])
+    assert(selected.action(for: selection) == .dim)
+    assert(selected.action(for: "regex:aaab[") == nil)
+    assert(try! SGMessageFilterRuleFile.decode(data: SGMessageFilterRuleFile.encode(configuration: selected, format: .txt), format: .txt).action(for: selection) == .dim)
+
+    // Old invalid expressions stay visible and individually removable; valid prefixes activate.
+    let old = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Old", keywords: ["regex:[", "regex:(", "regex:^sale$"])])
+    let oldData = try SGMessageFilterRuleFile.encode(configuration: old, format: .json)
+    defaults.set(oldData, forKey: "messageFilterGroups")
+    let loaded = SGMessageFilterStore(userDefaults: defaults)
+    assert(loaded.loadError == nil)
+    assert(loaded.configuration == old)
+    assert(defaults.data(forKey: "messageFilterGroups") == oldData)
+    assert(loaded.configuration.action(for: "sale") == .dim)
+    assert(loaded.configuration.action(for: "regex:[") == nil)
+    var edited = loaded.configuration
+    edited.groups[0].name = "Renamed"
+    try loaded.update(edited)
+    edited.groups[0].keywords.removeFirst()
+    try loaded.update(edited)
+    assert(loaded.configuration.groups[0].keywords == ["regex:(", "regex:^sale$"])
+    edited.groups[0].keywords[0] = "regex:repaired"
+    try loaded.update(edited)
+    assert(SGMessageFilterStore(userDefaults: defaults).configuration == edited)
+    defaults.removeObject(forKey: "messageFilterGroups")
+    defaults.set(["regex:[", "regex:^legacy$"], forKey: "messageFilterKeywords")
+    let legacy = SGMessageFilterStore(userDefaults: defaults)
+    assert(legacy.loadError == nil)
+    assert(legacy.configuration.action(for: "legacy") == .dim)
+    assert(legacy.configuration.groups[0].keywords.first == "regex:[")
+}
+
+func testRegexDeadline() {
+    let expired = ProcessInfo.processInfo.systemUptime - 1.0
+    var configuration = SGMessageFilterConfiguration(groups: [
+        SGMessageFilterGroup(name: "Literal", action: .hide, keywords: ["match"]),
+        SGMessageFilterGroup(id: 2, name: "Regex", action: .allow, keywords: ["regex:^match$"])
+    ])
+    assert(configuration.match(for: ["match"], deadline: expired) == nil)
+    configuration.matchingMode = .strongest
+    assert(configuration.match(for: ["match"], deadline: expired) == nil)
+    assert(configuration.match(for: ["match"], deadline: .infinity)?.action == .allow)
+    // A partial hide result must be discarded when a later expression times out.
+    configuration.groups[0].keywords = ["!"]
+    configuration.groups[1].keywords = ["regex:^(a+)+$"]
+    let start = ProcessInfo.processInfo.systemUptime
+    let deadline = start + SGMessageFilterRule.matchingTimeLimit
+    assert(configuration.match(for: [String(repeating: "a", count: 80) + "!"], deadline: deadline) == nil)
+    assert(ProcessInfo.processInfo.systemUptime >= deadline)
+    assert(ProcessInfo.processInfo.systemUptime - start < 2.0)
+    assert(configuration.match(for: ["!"], deadline: deadline) == nil)
+}
+
+func testRegexUnicodeIdentity() throws {
+    let composed = "regex:^\u{e9}$"
+    let decomposed = "regex:^e\u{301}$"
+    assert(composed == decomposed) // Swift equality alone must not deduplicate these ICU patterns.
+    for (rule, matching, other) in [(composed, "\u{e9}", "e\u{301}"), (decomposed, "e\u{301}", "\u{e9}")] {
+        let configuration = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Unicode", keywords: [rule])])
+        assert(configuration.action(for: matching) == .dim)
+        assert(configuration.action(for: other) == nil)
+    }
+    let first = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Unicode", keywords: [composed])])
+    let second = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Unicode", keywords: [decomposed])])
+    assert(first != second)
+    let merged = first.merging(second)
+    assert(merged.groups[0].keywords.count == 2)
+    var duplicates = merged
+    duplicates.groups[0].keywords += [composed, decomposed]
+    assert(try! duplicates.normalized() == merged)
+    for format in [SGMessageFilterFileFormat.json, .txt] {
+        let encoded = try SGMessageFilterRuleFile.encode(configuration: duplicates, format: format)
+        let decoded = try SGMessageFilterRuleFile.decode(data: encoded, format: format, groupName: "Unicode")
+        assert(decoded == merged)
+        assert(decoded.groups[0].keywords.map { Data($0.utf8) } == [Data(composed.utf8), Data(decomposed.utf8)])
+    }
+    let literal = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Literal", keywords: ["\u{e9}", "e\u{301}"])])
+    assert(try! literal.normalized().groups[0].keywords.count == 1)
+
+    let suite = "MessageFilterUnicodeTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = SGMessageFilterStore(userDefaults: defaults)
+    try store.update(first)
+    let counter = NotificationCounter()
+    let observer = NotificationCenter.default.addObserver(forName: SGMessageFilterStore.didChange, object: store, queue: nil) { _ in counter.increment() }
+    defer { NotificationCenter.default.removeObserver(observer) }
+    try store.update(second)
+    assert(counter.value == 1)
+    assert(SGMessageFilterStore(userDefaults: defaults).configuration == second)
+    try store.update(merged)
+    var removed = store.configuration
+    let removedIDs = Set([SGMessageFilterRule.identity(composed)])
+    removed.groups[0].keywords.removeAll { removedIDs.contains(SGMessageFilterRule.identity($0)) }
+    try store.update(removed)
+    assert(store.configuration == second)
+
+    // A combining mark joins the prefix's colon into one grapheme, but remains part of the pattern.
+    let combining = "regex:\u{301}"
+    let configuration = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Combining", keywords: [combining])])
+    assert(configuration.hasRegularExpressions)
+    assert(SGMessageFilterRule.validationError(for: combining) == nil)
+    assert(configuration.action(for: "e\u{301}") == .dim)
+    assert(configuration.action(for: "plain") == nil)
+    let selected = combining + "[+"
+    assert(try! store.appendKeywords([selected], toGroupNamed: "Unicode", defaultGroupName: "Default") == 1)
+    let selectedRule = store.configuration.groups[0].keywords.last!
+    assert(Data(selectedRule.utf8) == Data(("regex:" + NSRegularExpression.escapedPattern(for: selected)).utf8))
+    assert(store.configuration.action(for: selected) == .dim)
+}
+
+testRegexMatching()
+try testRegexFilesAndPersistence()
+testRegexDeadline()
+try testRegexUnicodeIdentity()
+
+print("Message filter matching, regex deadlines, groups, JSON/TXT codecs, limits, merging, migration, persistence and keyword selection checks passed.")

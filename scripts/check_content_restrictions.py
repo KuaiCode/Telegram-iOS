@@ -158,7 +158,7 @@ for path in ("submodules/GalleryUI/Sources/GalleryController.swift", "submodules
 for path in (UI + "Sources/ChatController.swift", UI + "Sources/ChatPinnedMessageTitlePanelNode.swift", UI + "Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoScreen.swift"):
     assert "allowsGroupCopyingAndScreenshots" in read(path), path
 context_menu = read(UI + "Sources/Chat/ChatControllerOpenMessageContextMenu.swift")
-assert "let isSecret = message.isCopyProtectedForLocalUse(peerIsCopyProtected: self.presentationInterfaceState.copyProtectionEnabled)" in context_menu
+assert "let isSecret = message._asMessage().isCopyProtectedForLocalUse(peerIsCopyProtected: self.presentationInterfaceState.copyProtectionEnabled)" in context_menu
 
 # Pinned paid thumbnails must not inherit only the peer's unprotected capture state.
 pinned = read(UI + "Sources/ChatPinnedMessageTitlePanelNode.swift")

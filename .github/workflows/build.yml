@@ -125,7 +125,7 @@ jobs:
           mv build/artifacts/Swiftgram.DSYMs.zip build/artifacts/Airygram.DSYMs.zip
           unzip -tq build/artifacts/Airygram-unsigned.ipa
 
-      - name: Limit Bazel cache to 4 GiB
+      - name: Limit Bazel cache to 10 GiB
         id: trim-bazel-cache
         if: ${{ !cancelled() && (steps.bazel-build.outcome == 'success' || steps.bazel-build.outcome == 'failure') }}
         continue-on-error: true

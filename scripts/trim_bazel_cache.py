@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-def trim_cache(directory, max_bytes=4 * 1024**3):
+def trim_cache(directory, max_bytes=10 * 1024**3):
     directory = Path(directory)
     if max_bytes < 0 or directory.is_symlink() or not directory.is_dir():
         raise ValueError("Expected a cache directory and a non-negative size limit")

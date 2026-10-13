@@ -525,9 +525,79 @@ func testRegexUnicodeIdentity() throws {
     assert(store.configuration.action(for: selected) == .dim)
 }
 
+func testRegexInternalError() {
+    // Enough capture state to exhaust ICU's match stack without catastrophic backtracking.
+    let pattern = "^(a" + String(repeating: "()", count: 500) + ")*$"
+    let text = String(repeating: "a", count: 4096)
+    let expression = try! NSRegularExpression(pattern: pattern)
+    var internalError = false
+    expression.enumerateMatches(in: text, options: [.reportProgress, .reportCompletion], range: NSRange(text.startIndex ..< text.endIndex, in: text)) { _, flags, _ in
+        if flags.contains(.internalError) { internalError = true }
+    }
+    assert(internalError, "Fixture must fail inside ICU, not from an expired deadline")
+    let broken = SGMessageFilterGroup(name: "Allow", action: .allow, keywords: ["regex:" + pattern])
+    let hidden = SGMessageFilterGroup(id: 2, name: "Hide", action: .hide, keywords: ["a"])
+    for configuration in [
+        SGMessageFilterConfiguration(groups: [broken, hidden]),
+        SGMessageFilterConfiguration(matchingMode: .strongest, groups: [hidden, broken])
+    ] {
+        assert(configuration.evaluate(for: [text], deadline: .infinity) == .interrupted)
+        assert(configuration.match(for: [text], deadline: .infinity) == nil)
+        assert(configuration.evaluate(for: [text, "ordinary"], deadline: .infinity) == .interrupted)
+        assert(configuration.evaluate(for: ["bbb"], deadline: .infinity) == .completed(nil))
+    }
+}
+
+func testRevealAfterInterruptedMatching() {
+    for action in [SGMessageFilterAction.collapse, .mask, .hide] {
+        let configuration = SGMessageFilterConfiguration(groups: [SGMessageFilterGroup(name: "Ads", action: action, keywords: ["regex:^ad$"])])
+        let matched = configuration.evaluate(for: ["ad"], deadline: .infinity)
+        let missed = configuration.evaluate(for: ["ordinary"], deadline: .infinity)
+        let interrupted = configuration.evaluate(for: ["ad"], deadline: ProcessInfo.processInfo.systemUptime - 1.0)
+        assert(matched.match?.action == action)
+        assert(missed == .completed(nil))
+        assert(interrupted == .interrupted && interrupted.match == nil)
+        var state = SGMessageFilterRevealState()
+        assert(state.update(matched, contentChanged: true))
+        state.isRevealed = true
+        // An interrupted round displays normally, preserves the last result, and keeps its generation.
+        for _ in 0..<2 {
+            assert(!state.update(interrupted, contentChanged: false))
+            assert(state.lastEvaluation == matched && state.isRevealed)
+        }
+        assert(!state.update(matched, contentChanged: false))
+        assert(state.isRevealed)
+        state.isRevealed = false
+        assert(!state.update(interrupted, contentChanged: false))
+        assert(!state.update(matched, contentChanged: false) && !state.isRevealed)
+        state.isRevealed = true
+        // Successful nonmatches still invalidate a reveal; interruption must not mean nonmatch.
+        assert(state.update(missed, contentChanged: false))
+        assert(!state.isRevealed && state.lastEvaluation == missed)
+        assert(state.update(matched, contentChanged: false))
+        state.isRevealed = true
+        // An edited caption or changed album membership must invalidate even during interruption.
+        assert(state.update(interrupted, contentChanged: true))
+        assert(!state.isRevealed && state.lastEvaluation == .interrupted)
+        assert(!state.update(matched, contentChanged: false))
+        assert(!state.isRevealed)
+        // A pending user reveal applied before the first successful evaluation also survives recovery.
+        state = SGMessageFilterRevealState()
+        assert(state.update(interrupted, contentChanged: true))
+        state.isRevealed = true
+        assert(!state.update(matched, contentChanged: false))
+        assert(state.isRevealed)
+        // Resetting the configuration discards previous reveal state.
+        state = SGMessageFilterRevealState()
+        assert(!state.isRevealed && state.lastEvaluation == .interrupted)
+    }
+}
+
 testRegexMatching()
 try testRegexFilesAndPersistence()
 testRegexDeadline()
 try testRegexUnicodeIdentity()
+testRegexInternalError()
+testRevealAfterInterruptedMatching()
 
-print("Message filter matching, regex deadlines, groups, JSON/TXT codecs, limits, merging, migration, persistence and keyword selection checks passed.")
+print("Message filter matching, regex deadlines and engine errors, reveal recovery, groups, JSON/TXT codecs, limits, merging, migration, persistence and keyword selection checks passed.")

@@ -42,6 +42,32 @@ public struct SGMessageFilterMatch: Equatable {
     }
 }
 
+public enum SGMessageFilterEvaluation: Equatable {
+    case completed(SGMessageFilterMatch?)
+    case interrupted
+
+    public var match: SGMessageFilterMatch? {
+        if case let .completed(match) = self { return match }
+        return nil
+    }
+}
+
+public struct SGMessageFilterRevealState {
+    public private(set) var lastEvaluation = SGMessageFilterEvaluation.interrupted
+    public var isRevealed = false
+
+    public init() {}
+
+    // Interrupted rounds display normally without replacing the last completed evaluation.
+    public mutating func update(_ evaluation: SGMessageFilterEvaluation, contentChanged: Bool) -> Bool {
+        if evaluation == .interrupted && !contentChanged { return false }
+        let changed = contentChanged || (lastEvaluation != .interrupted && lastEvaluation != evaluation)
+        lastEvaluation = evaluation
+        if changed { self.isRevealed = false }
+        return changed
+    }
+}
+
 public enum SGMessageFilterMatchingMode: String, Codable, CaseIterable {
     case firstMatch
     case strongest
@@ -132,7 +158,7 @@ public enum SGMessageFilterRule {
             var matched = false
             var interrupted = false
             // shortcut: progress callbacks give an approximate deadline; strict isolation would require a different engine.
-            expression.enumerateMatches(in: text, options: .reportProgress, range: NSRange(text.startIndex ..< text.endIndex, in: text)) { result, flags, stop in
+            expression.enumerateMatches(in: text, options: [.reportProgress, .reportCompletion], range: NSRange(text.startIndex ..< text.endIndex, in: text)) { result, flags, stop in
                 if ProcessInfo.processInfo.systemUptime >= deadline || flags.contains(.internalError) {
                     interrupted = true
                     stop.pointee = true
@@ -185,28 +211,32 @@ public struct SGMessageFilterConfiguration: Codable, Equatable {
     }
 
     public func match(for texts: [String], deadline: TimeInterval? = nil) -> SGMessageFilterMatch? {
+        return self.evaluate(for: texts, deadline: deadline).match
+    }
+
+    public func evaluate(for texts: [String], deadline: TimeInterval? = nil) -> SGMessageFilterEvaluation {
         let deadline = deadline ?? (hasRegularExpressions ? ProcessInfo.processInfo.systemUptime + SGMessageFilterRule.matchingTimeLimit : .infinity)
         var result: SGMessageFilterMatch?
         for group in groups {
             var matched = false
             for keyword in group.keywords {
-                guard let matches = SGMessageFilterRule.matches(keyword, texts: texts, deadline: deadline) else { return nil }
+                guard let matches = SGMessageFilterRule.matches(keyword, texts: texts, deadline: deadline) else { return .interrupted }
                 if matches {
                     matched = true
                     break
                 }
             }
-            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return .interrupted }
             guard matched else { continue }
             let match = SGMessageFilterMatch(action: group.action, groupName: group.name)
             if matchingMode == .firstMatch {
-                return match
+                return .completed(match)
             }
             if result == nil || group.action.takesPriority(over: result!.action) {
                 result = match
             }
         }
-        return result
+        return .completed(result)
     }
 
     public func normalized() throws -> SGMessageFilterConfiguration {

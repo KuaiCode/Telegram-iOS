@@ -17,6 +17,7 @@ action_enum = rules.split("public enum SGMessageFilterAction", 1)[1].split("publ
 assert set(re.findall(r"case (\w+)", action_enum)) == {"dim", "allow", "collapse", "hide", "mask"}
 assert "public func action(for text: String)" in rules
 assert "public struct SGMessageFilterMatch: Equatable" in rules
+assert "options: [.reportProgress, .reportCompletion]" in rules, "Engine failures require completion callbacks"
 
 sources = [
     rules,
@@ -106,7 +107,7 @@ def check_history_boundaries(state, history, base):
     setup = section(base, "open func setupItem(", "public static func messageFilterLayout(")
     invalidate = section(base, "private func invalidateMessageFilterDust()", "private func removeMessageFilterCover()")
     paging = section(history, "// A sparse page can touch both edges.", "if mathesFirst && historyView.originalView.laterId")
-    revision = section(state, "if contentChanged ||", "self.matches[key] = match")
+    revision = section(state, "if revealState.update(", "if messages.contains(where: { self.pendingReveal")
     reveal = section(state, "func setRevealed(", "func toggleShowAll()")
     callback = section(base, "dust.revealed = {", "cover.addSubnode(dust)")
     content = section(state, "private struct Content {", "var configuration")
@@ -119,7 +120,17 @@ def check_history_boundaries(state, history, base):
             and "configuration.hasRegularExpressions" in processing
             and "ProcessInfo.processInfo.systemUptime + SGMessageFilterRule.matchingTimeLimit : nil" in processing
             and processing.index("let matchingDeadline:") < processing.index("for (key, messages) in messagesByKey")
-            and r"self.configuration.match(for: messages.map(\.text), deadline: matchingDeadline)" in processing
+            and r"self.configuration.evaluate(for: messages.map(\.text), deadline: matchingDeadline)" in processing
+        ),
+        "interrupted matching preserves reveal state": (
+            "var evaluation = SGMessageFilterEvaluation.completed(nil)" in processing
+            and "var revealState = self.revealStates[key] ?? SGMessageFilterRevealState()" in processing
+            and "if revealState.update(evaluation, contentChanged: contentChanged) || self.generations[key] == nil" in processing
+            and "self.revealStates[key] = revealState" in processing
+            and "results[key] = (self.showAll ? nil : evaluation.match, revealState.isRevealed)" in processing
+            and "self.revealStates.removeAll()" in state
+            and "self.revealStates[key, default: SGMessageFilterRevealState()].isRevealed = value" in reveal
+            and processing.index("revealState.isRevealed = true") < processing.index("self.revealStates[key] = revealState")
         ),
         "hidden-page navigation": (
             "historyView.hasHiddenMessages, historyView.filteredEntries.isEmpty" in anchor
@@ -161,13 +172,13 @@ def check_history_boundaries(state, history, base):
             and "previousContents?[message.id]?.matches(message) != true" in processing
             and "updatedContents[message.id] = Content(text: message.text, entities: message.textEntitiesAttribute?.entities ?? [], media: message.media)" in processing
             and "self.contents[key] = updatedContents" in processing
-            and "self.revealed.remove(key)" in revision
+            and "revealState.isRevealed = false" in revision
             and "self.generations[key] = self.generation" in revision
-            and processing.index("if contentChanged ||") < processing.index("self.pendingReveal.contains($0.id)")
+            and processing.index("if revealState.update(") < processing.index("self.pendingReveal.contains($0.id)")
         ),
         "stale album reveal rejection": (
             "self.generations[key] == expectedGeneration else { return false }" in reveal
-            and reveal.index("self.generations[key] == expectedGeneration") < reveal.index("self.revealed.insert(key)")
+            and reveal.index("self.generations[key] == expectedGeneration") < reveal.index(".isRevealed = value")
             and "self.generations.removeAll()" in state
             and state.count("updated.messageFilterGeneration = self.generations[key] ?? 0") == 2
             and "messageFilterGeneration != item.content.firstMessageAttributes.messageFilterGeneration" in setup
@@ -222,6 +233,8 @@ assert "return lhs.range == rhs.range && lhs.type == rhs.type" in entity_type
 # Negative controls ensure each boundary check detects removal of its protection.
 mutations = [
     (0, "deadline: matchingDeadline", "deadline: nil", "shared regex deadline"),
+    (0, "self.revealStates[key] ?? SGMessageFilterRevealState()", "SGMessageFilterRevealState()", "interrupted matching preserves reveal state"),
+    (0, "self.showAll ? nil : evaluation.match", "self.showAll ? nil : revealState.lastEvaluation.match", "interrupted matching preserves reveal state"),
     (1, "historyView.originalView.entries.last?.message {", "historyView.filteredEntries.last?.message {", "hidden-page navigation"),
     (0, "messagesByKey[.album(groupId)] = messages", "messagesByKey[.album(groupId)] = []", "complete boundary albums"),
     (2, "self.invalidateMessageFilterDust()", "self.removeMessageFilterCover()", "opaque cover during asynchronous reuse"),

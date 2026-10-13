@@ -51,11 +51,10 @@ final class ChatMessageFilterState {
     var configuration = SGSimpleSettings.shared.messageFilter.configuration
     var showAll = false
     private(set) var hasHiddenMessages = false
-    private var revealed = Set<Key>()
+    private var revealStates: [Key: SGMessageFilterRevealState] = [:]
     private var pendingReveal = Set<MessageId>()
     private var keys: [MessageId: Key] = [:]
     private var contents: [Key: [MessageId: Content]] = [:]
-    private var matches: [Key: SGMessageFilterMatch] = [:]
     private var generations: [Key: Int] = [:]
     private var generation = 0
 
@@ -63,7 +62,7 @@ final class ChatMessageFilterState {
         self.configuration = SGSimpleSettings.shared.messageFilter.configuration
         self.generation += 1
         self.generations.removeAll()
-        self.revealed.removeAll()
+        self.revealStates.removeAll()
         self.pendingReveal.removeAll()
     }
 
@@ -78,11 +77,7 @@ final class ChatMessageFilterState {
             self.pendingReveal.remove(id)
         }
         if let key = self.keys[id] {
-            if value {
-                self.revealed.insert(key)
-            } else {
-                self.revealed.remove(key)
-            }
+            self.revealStates[key, default: SGMessageFilterRevealState()].isRevealed = value
         }
         return true
     }
@@ -118,8 +113,8 @@ final class ChatMessageFilterState {
             var updatedContents: [MessageId: Content] = [:]
             for message in messages {
                 if let previousKey = self.keys[message.id], previousKey != key {
-                    self.revealed.remove(previousKey)
-                    self.revealed.remove(key)
+                    self.revealStates[previousKey]?.isRevealed = false
+                    self.revealStates[key]?.isRevealed = false
                     contentChanged = true
                 }
                 self.keys[message.id] = key
@@ -133,23 +128,24 @@ final class ChatMessageFilterState {
                 message.effectivelyIncoming(accountPeerId) && message.adAttribute == nil
                     && !message.media.contains(where: { $0 is TelegramMediaAction || $0 is TelegramMediaExpiredContent })
             }
-            var match: SGMessageFilterMatch?
+            var evaluation = SGMessageFilterEvaluation.completed(nil)
             if canFilter && !configuration.groups.isEmpty && (SGFeaturePolicy.isFreeEdition || SGSimpleSettings.shared.ephemeralStatus > 1) {
-                match = self.configuration.match(for: messages.map(\.text), deadline: matchingDeadline)
+                evaluation = self.configuration.evaluate(for: messages.map(\.text), deadline: matchingDeadline)
             }
-            if contentChanged || self.matches[key] != match || self.generations[key] == nil {
-                self.revealed.remove(key)
+            var revealState = self.revealStates[key] ?? SGMessageFilterRevealState()
+            if revealState.update(evaluation, contentChanged: contentChanged) || self.generations[key] == nil {
+                revealState.isRevealed = false
                 self.generation += 1
                 self.generations[key] = self.generation
             }
-            self.matches[key] = match
             if messages.contains(where: { self.pendingReveal.contains($0.id) }) {
-                self.revealed.insert(key)
+                revealState.isRevealed = true
                 for message in messages {
                     self.pendingReveal.remove(message.id)
                 }
             }
-            results[key] = (self.showAll ? nil : match, self.revealed.contains(key))
+            self.revealStates[key] = revealState
+            results[key] = (self.showAll ? nil : evaluation.match, revealState.isRevealed)
         }
 
         let result: [ChatHistoryEntry] = entries.compactMap { entry in

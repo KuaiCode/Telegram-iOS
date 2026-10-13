@@ -401,6 +401,12 @@ public extension Message {
             return false
         }
     }
+
+    // Only local copy/capture may opt out; forwarding keeps the server protection flags.
+    func isCopyProtectedForLocalUse(peerIsCopyProtected: Bool = false) -> Bool {
+        let allowsLocalCopy = self.id.peerId.allowsGroupCopyingAndScreenshots && !self.containsSecretMedia && self.minAutoremoveOrClearTimeout != viewOnceTimeout && self.paidContent == nil
+        return (peerIsCopyProtected || self.isCopyProtected()) && !allowsLocalCopy
+    }
     
     func isSensitiveContent(platform: String) -> Bool {
         if let rule = self.restrictedContentAttribute?.rules.first(where: { $0.reason == "sensitive" }) {

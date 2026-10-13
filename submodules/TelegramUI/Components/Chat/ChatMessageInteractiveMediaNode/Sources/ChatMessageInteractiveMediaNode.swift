@@ -2034,7 +2034,7 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                                             autoFetchFullSizeThumbnail: true,
                                             continuePlayingWithoutSoundOnLostAudioSession: isInlinePlayableVideo,
                                             placeholderColor: emptyColor,
-                                            captureProtected: associatedData.isCopyProtectionEnabled || message.isCopyProtected() || isExtendedMedia,
+                                            captureProtected: message.isCopyProtectedForLocalUse(peerIsCopyProtected: associatedData.isCopyProtectionEnabled) || isExtendedMedia,
                                             storeAfterDownload: { [weak context] in
                                                 guard let context, let peerId else {
                                                     return
@@ -2336,7 +2336,7 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                             }
                             
                             if let updateImageSignal = updateImageSignal {
-                                strongSelf.imageNode.captureProtected = associatedData.isCopyProtectionEnabled || message.isCopyProtected() || isExtendedMedia
+                                strongSelf.imageNode.captureProtected = message.isCopyProtectedForLocalUse(peerIsCopyProtected: associatedData.isCopyProtectionEnabled) || isExtendedMedia
                                 strongSelf.imageNode.setSignal(updateImageSignal(synchronousLoads, false), attemptSynchronously: synchronousLoads)
 
                                 var imageDimensions: CGSize?

@@ -158,6 +158,8 @@ public class SGSimpleSettings {
         case videoPIPSwipeDirection
         case legacyNotificationsFix
         case messageFilterKeywords
+        case ignoreAppleTerms
+        case allowGroupCopyingAndScreenshots
         case inputToolbar
         case pinnedMessageNotifications
         case mentionsAndRepliesNotifications
@@ -314,6 +316,8 @@ public class SGSimpleSettings {
         Keys.confirmCalls.rawValue: true,
         Keys.videoPIPSwipeDirection.rawValue: VideoPIPSwipeDirection.up.rawValue,
         Keys.messageFilterKeywords.rawValue: [],
+        Keys.ignoreAppleTerms.rawValue: false,
+        Keys.allowGroupCopyingAndScreenshots.rawValue: false,
         Keys.inputToolbar.rawValue: false,
         Keys.primaryUserId.rawValue: "",
         Keys.dismissedSGSuggestions.rawValue: [],
@@ -550,6 +554,17 @@ public class SGSimpleSettings {
     
     @UserDefault(key: Keys.messageFilterKeywords.rawValue)
     public var messageFilterKeywords: [String]
+
+    // Restriction checks also run off the main thread; avoid UserDefault's unsynchronized cache.
+    public var ignoreAppleTerms: Bool {
+        get { UserDefaults.standard.bool(forKey: Keys.ignoreAppleTerms.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Keys.ignoreAppleTerms.rawValue) }
+    }
+
+    public var allowGroupCopyingAndScreenshots: Bool {
+        get { UserDefaults.standard.bool(forKey: Keys.allowGroupCopyingAndScreenshots.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Keys.allowGroupCopyingAndScreenshots.rawValue) }
+    }
     
     @UserDefault(key: Keys.inputToolbar.rawValue)
     public var inputToolbar: Bool

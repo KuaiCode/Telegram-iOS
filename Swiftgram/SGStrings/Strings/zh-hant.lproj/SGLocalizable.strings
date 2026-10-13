@@ -1,5 +1,10 @@
 "Settings.ContentSettings" = "敏感內容設定";
 "Settings.Advance.Title" = "高級";
+"Settings.Advance.IgnoreAppleTerms" = "顯示 appleterms-ios 內容";
+"Settings.Advance.IgnoreAppleTerms.Notice" = "僅取消 appleterms-ios 的本機顯示限制，不改變伺服器存取權限。";
+"Settings.Advance.AllowGroupCopyingAndScreenshots" = "群組、頻道複製與截圖";
+"Settings.Advance.AllowGroupCopyingAndScreenshots.Notice" = "允許一般群組和頻道中的本機複製與截圖。秘密聊天、一次性和付費媒體仍受保護。";
+"Settings.Advance.RestrictionsRestart" = "變更以上開關後，請重新啟動 Airygram。";
 
 "Settings.Tabs.Header" = "頁籤";
 "Settings.Tabs.HideTabBar" = "隱藏導航列";

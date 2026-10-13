@@ -44,7 +44,7 @@ public extension Peer {
                     continue
                 }
                 if rule.platform == "all" || rule.platform == platform || contentSettings.addContentRestrictionReasons.contains(rule.platform) {
-                    if !contentSettings.ignoreContentRestrictionReasons.contains(rule.reason) {
+                    if !contentSettings.ignoresPlatformRestriction(reason: rule.reason, platform: rule.platform) {
                         return rule.text + "\n" + "\(rule.reason)-\(rule.platform)"
                     }
                 }
@@ -445,6 +445,10 @@ public extension TelegramPeerUsername {
 }
 
 public extension PeerId {
+    var allowsGroupCopyingAndScreenshots: Bool {
+        return self.isGroupOrChannel && SGSimpleSettings.shared.allowGroupCopyingAndScreenshots
+    }
+
     var isGroupOrChannel: Bool {
         switch self.namespace {
         case Namespaces.Peer.CloudGroup, Namespaces.Peer.CloudChannel:

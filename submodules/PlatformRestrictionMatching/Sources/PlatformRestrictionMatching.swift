@@ -41,7 +41,7 @@ public extension RestrictedContentMessageAttribute {
                 continue
             }
             if rule.platform == "all" || rule.platform == "ios" || contentSettings.addContentRestrictionReasons.contains(rule.platform) {
-                if !contentSettings.ignoreContentRestrictionReasons.contains(rule.reason) {
+                if !contentSettings.ignoresPlatformRestriction(reason: rule.reason, platform: rule.platform) {
                     return rule.text + "\n" + "\(rule.reason)-\(rule.platform)"
                 }
             }

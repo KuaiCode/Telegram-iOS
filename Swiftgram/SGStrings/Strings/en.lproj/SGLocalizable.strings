@@ -1,5 +1,10 @@
 "Settings.ContentSettings" = "Content Settings";
 "Settings.Advance.Title" = "Advance";
+"Settings.Advance.IgnoreAppleTerms" = "Show appleterms-ios Content";
+"Settings.Advance.IgnoreAppleTerms.Notice" = "Removes the local appleterms-ios display restriction. Server access permissions still apply.";
+"Settings.Advance.AllowGroupCopyingAndScreenshots" = "Allow Copy & Screenshots";
+"Settings.Advance.AllowGroupCopyingAndScreenshots.Notice" = "Allows local copying and screenshots in groups and channels. Secret chats, view-once and paid media remain protected.";
+"Settings.Advance.RestrictionsRestart" = "Restart Airygram after changing these switches.";
 
 "Settings.Tabs.Header" = "TABS";
 "Settings.Tabs.HideTabBar" = "Hide Tab bar";

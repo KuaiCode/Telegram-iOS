@@ -292,7 +292,7 @@ final class ChatPinnedMessageTitlePanelNode: ChatTitleAccessoryPanelNode {
         }
         self.isReplyThread = isReplyThread
         
-        self.captureProtected = interfaceState.copyProtectionEnabled || interfaceState.myCopyProtectionEnabled
+        self.captureProtected = (interfaceState.copyProtectionEnabled && interfaceState.chatLocation.peerId?.allowsGroupCopyingAndScreenshots != true) || interfaceState.myCopyProtectionEnabled
         
         self.contextContainer.isGestureEnabled = !isReplyThread
         

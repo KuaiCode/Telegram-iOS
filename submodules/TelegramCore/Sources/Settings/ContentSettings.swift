@@ -2,6 +2,7 @@ import Foundation
 import Postbox
 import TelegramApi
 import SwiftSignalKit
+import SGSimpleSettings
 
 public struct ContentSettings: Equatable {
     public static var `default` = ContentSettings(ignoreContentRestrictionReasons: [], addContentRestrictionReasons: [], appConfiguration: AppConfiguration.defaultValue)
@@ -9,6 +10,11 @@ public struct ContentSettings: Equatable {
     public var ignoreContentRestrictionReasons: Set<String>
     public var addContentRestrictionReasons: [String]
     public var appConfiguration: AppConfiguration
+    public var ignoreAppleTerms: Bool = false
+
+    public func ignoresPlatformRestriction(reason: String, platform: String) -> Bool {
+        return self.ignoreContentRestrictionReasons.contains(reason) || (self.ignoreAppleTerms && reason == "appleterms" && platform == "ios")
+    }
     
     public init(ignoreContentRestrictionReasons: Set<String>, addContentRestrictionReasons: [String], appConfiguration: AppConfiguration) {
         self.ignoreContentRestrictionReasons = ignoreContentRestrictionReasons
@@ -32,6 +38,7 @@ extension ContentSettings {
         // MARK: Swiftgram
         reasons += appConfiguration.sgWebSettings.user.expandedContentReasons()
         self.init(ignoreContentRestrictionReasons: Set(reasons), addContentRestrictionReasons: addContentRestrictionReasons, appConfiguration: appConfiguration)
+        self.ignoreAppleTerms = SGSimpleSettings.shared.ignoreAppleTerms
     }
 }
 

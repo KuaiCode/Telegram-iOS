@@ -678,7 +678,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             messageEntities = attribute.entities
                         }
                         if let attribute = attribute as? RestrictedContentMessageAttribute {
-                            restrictedText = attribute.platformText(platform: "ios", contentSettings: context.currentContentSettings.with { $0 }, chatId: message.author?.id.id._internalGetInt64Value()) ?? ""
+                            restrictedText = attribute.platformText(platform: "ios", contentSettings: context.currentContentSettings.with { $0 }, chatId: message.author?.id.id._internalGetInt64Value())
                         }
                     }
                     
@@ -1349,10 +1349,11 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
         }
         
         let isCopyProtected = chatPresentationInterfaceState.copyProtectionEnabled || message.isCopyProtected()
+        let isLocalCopyProtected = message.isCopyProtectedForLocalUse(peerIsCopyProtected: chatPresentationInterfaceState.copyProtectionEnabled)
         if !messageText.isEmpty || richMessageMarkdown != nil || (resourceAvailable && isImage) || diceEmoji != nil {
             if !isExpired {
                 if !isPoll {
-                    if !isCopyProtected {
+                    if !isLocalCopyProtected {
                         actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuCopy, icon: { theme in
                             return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Copy"), color: theme.actionSheet.primaryTextColor)
                         }, action: { _, f in
@@ -1379,7 +1380,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                                             messageEntities = attribute.entities
                                         }
                                         if let attribute = attribute as? RestrictedContentMessageAttribute {
-                                            restrictedText = attribute.platformText(platform: "ios", contentSettings: context.currentContentSettings.with { $0 }, chatId: message.author?.id.id._internalGetInt64Value()) ?? ""
+                                            restrictedText = attribute.platformText(platform: "ios", contentSettings: context.currentContentSettings.with { $0 }, chatId: message.author?.id.id._internalGetInt64Value())
                                         }
                                         if let attribute = attribute as? AudioTranscriptionMessageAttribute {
                                             messageText = attribute.text
@@ -1469,7 +1470,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             }
                         }
                         
-                        controllerInteraction.performTextSelectionAction(message, !isCopyProtected, NSAttributedString(string: messageText), messageEntities, .translate)
+                        controllerInteraction.performTextSelectionAction(message, !isLocalCopyProtected, NSAttributedString(string: messageText), messageEntities, .translate)
                         f(.default)
                     })))
                 }
@@ -1490,7 +1491,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             text = translation.text
                         }
                         
-                        controllerInteraction.performTextSelectionAction(message, !isCopyProtected, NSAttributedString(string: text), nil, .speak)
+                        controllerInteraction.performTextSelectionAction(message, !isLocalCopyProtected, NSAttributedString(string: text), nil, .speak)
                         f(.default)
                     })))
                 }
@@ -2566,7 +2567,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                                 messageEntities = attribute.entities
                             }
                             if let attribute = attribute as? RestrictedContentMessageAttribute {
-                                restrictedText = attribute.platformText(platform: "ios", contentSettings: context.currentContentSettings.with { $0 }, chatId: message.author?.id.id._internalGetInt64Value()) ?? ""
+                                restrictedText = attribute.platformText(platform: "ios", contentSettings: context.currentContentSettings.with { $0 }, chatId: message.author?.id.id._internalGetInt64Value())
                             }
                         }
                         

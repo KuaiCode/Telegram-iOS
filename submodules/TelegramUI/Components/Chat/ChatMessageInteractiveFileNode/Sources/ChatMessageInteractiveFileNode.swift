@@ -2039,7 +2039,7 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
     
     public func updateIsExtractedToContextPreview(_ value: Bool) {
         if value {
-            if self.textSelectionNode == nil, self.textClippingNode.supernode != nil, let item = self.arguments, !item.associatedData.isCopyProtectionEnabled && !item.message.isCopyProtected(), let rootNode = item.controllerInteraction.chatControllerNode() {
+            if self.textSelectionNode == nil, self.textClippingNode.supernode != nil, let item = self.arguments, !item.message.isCopyProtectedForLocalUse(peerIsCopyProtected: item.associatedData.isCopyProtectionEnabled), let rootNode = item.controllerInteraction.chatControllerNode() {
                 let selectionColor: UIColor
                 let knobColor: UIColor
                 if item.message.effectivelyIncoming(item.context.account.peerId) {
@@ -2063,6 +2063,7 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                     item.controllerInteraction.performTextSelectionAction(item.message, true, text, nil, action)
                 })
                 textSelectionNode.enableQuote = false
+                textSelectionNode.enableShare = !item.associatedData.isCopyProtectionEnabled && !item.message.isCopyProtected()
                 self.textSelectionNode = textSelectionNode
                 self.textClippingNode.addSubnode(textSelectionNode)
                 self.textClippingNode.insertSubnode(textSelectionNode.highlightAreaNode, belowSubnode: self.textNode)

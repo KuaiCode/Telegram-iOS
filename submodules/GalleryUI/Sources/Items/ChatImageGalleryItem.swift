@@ -359,7 +359,7 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
     }
     
     private func setupImageRecognition(_ generate: @escaping (TransformImageArguments) -> DrawingContext?, dimensions: PixelDimensions) {
-        guard let message = self.message, !message.isCopyProtected() && message.paidContent == nil else {
+        guard let message = self.message, !message.isCopyProtectedForLocalUse() && message.paidContent == nil else {
             return
         }
         let displaySize = dimensions.cgSize.fitted(CGSize(width: 1280.0, height: 1280.0)).dividedByScreenScale().integralFloor
@@ -460,7 +460,7 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
         self.translateToLanguage = translateToLanguage
         self.peerIsCopyProtected = peerIsCopyProtected
         self.isSecret = isSecret
-        self.imageNode.captureProtected = message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.isCopyProtected() || peerIsCopyProtected || isSecret || message.paidContent != nil
+        self.imageNode.captureProtected = message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.isCopyProtectedForLocalUse(peerIsCopyProtected: peerIsCopyProtected) || isSecret || message.paidContent != nil
         self.updateFooter(animated: false)
         
         var title: String?

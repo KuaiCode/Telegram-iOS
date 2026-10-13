@@ -1630,7 +1630,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
         )
 
         let enableCopy = (!messageItem.associatedData.isCopyProtectionEnabled && !messageItem.message.isCopyProtected()) || messageItem.message.id.peerId.isVerificationCodes
-        textSelectionNode.enableCopy = enableCopy
+        textSelectionNode.enableCopy = !messageItem.message.isCopyProtectedForLocalUse(peerIsCopyProtected: messageItem.associatedData.isCopyProtectionEnabled) || messageItem.message.id.peerId.isVerificationCodes
 
         var enableOtherActions = true
         if let subject = messageItem.associatedData.subject, case let .messageOptions(_, _, info) = subject, case .reply = info {

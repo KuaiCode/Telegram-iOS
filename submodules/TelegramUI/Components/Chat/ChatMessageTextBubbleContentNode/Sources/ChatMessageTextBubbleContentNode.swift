@@ -1655,7 +1655,7 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                 }
                 
                 let enableCopy = (!item.associatedData.isCopyProtectionEnabled && !item.message.isCopyProtected()) || item.message.id.peerId.isVerificationCodes
-                textSelectionNode.enableCopy = enableCopy
+                textSelectionNode.enableCopy = !item.message.isCopyProtectedForLocalUse(peerIsCopyProtected: item.associatedData.isCopyProtectionEnabled) || item.message.id.peerId.isVerificationCodes
                 
                 var enableQuote = !item.message.text.isEmpty
                 var enableOtherActions = true

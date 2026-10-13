@@ -14,6 +14,7 @@ import TelegramUniversalVideoContent
 import UndoUI
 
 private struct PeerAvatarImageGalleryThumbnailItem: GalleryThumbnailItem {
+    let captureProtected: Bool = false
     let account: Account
     let peer: EnginePeer
     let content: [ImageRepresentationWithReference]

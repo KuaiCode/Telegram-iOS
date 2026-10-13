@@ -1,6 +1,7 @@
 import Foundation
 import Postbox
 import TelegramApi
+import SGSimpleSettings
 
 public extension MessageFlags {
     var isSending: Bool {
@@ -404,8 +405,25 @@ public extension Message {
 
     // Only local copy/capture may opt out; forwarding keeps the server protection flags.
     func isCopyProtectedForLocalUse(peerIsCopyProtected: Bool = false) -> Bool {
-        let allowsLocalCopy = self.id.peerId.allowsGroupCopyingAndScreenshots && !self.containsSecretMedia && self.minAutoremoveOrClearTimeout != viewOnceTimeout && self.paidContent == nil
-        return (peerIsCopyProtected || self.isCopyProtected()) && !allowsLocalCopy
+        var paidMedia: [TelegramExtendedMedia]?
+        if let paidContent = self.paidContent {
+            paidMedia = paidContent.extendedMedia
+        } else if let invoice = self.media.first(where: { $0 is TelegramMediaInvoice }) as? TelegramMediaInvoice, let extendedMedia = invoice.extendedMedia {
+            paidMedia = [extendedMedia]
+        }
+
+        var paidMediaIsUnlocked = false
+        if let paidMedia, !paidMedia.isEmpty {
+            paidMediaIsUnlocked = paidMedia.allSatisfy { media in
+                if case .full = media {
+                    return true
+                }
+                return false
+            }
+        }
+        let allowsPaidMedia = paidMedia == nil || (SGSimpleSettings.shared.allowPaidMediaCopyingAndScreenshots && paidMediaIsUnlocked)
+        let allowsLocalCopy = self.id.peerId.allowsGroupCopyingAndScreenshots && !self.containsSecretMedia && self.minAutoremoveOrClearTimeout != viewOnceTimeout && allowsPaidMedia
+        return (peerIsCopyProtected || self.isCopyProtected() || paidMedia != nil) && !allowsLocalCopy
     }
     
     func isSensitiveContent(platform: String) -> Bool {

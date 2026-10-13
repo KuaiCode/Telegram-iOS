@@ -160,6 +160,7 @@ public class SGSimpleSettings {
         case messageFilterKeywords
         case ignoreAppleTerms
         case allowGroupCopyingAndScreenshots
+        case allowPaidMediaCopyingAndScreenshots
         case inputToolbar
         case pinnedMessageNotifications
         case mentionsAndRepliesNotifications
@@ -318,6 +319,7 @@ public class SGSimpleSettings {
         Keys.messageFilterKeywords.rawValue: [],
         Keys.ignoreAppleTerms.rawValue: false,
         Keys.allowGroupCopyingAndScreenshots.rawValue: false,
+        Keys.allowPaidMediaCopyingAndScreenshots.rawValue: false,
         Keys.inputToolbar.rawValue: false,
         Keys.primaryUserId.rawValue: "",
         Keys.dismissedSGSuggestions.rawValue: [],
@@ -564,6 +566,11 @@ public class SGSimpleSettings {
     public var allowGroupCopyingAndScreenshots: Bool {
         get { UserDefaults.standard.bool(forKey: Keys.allowGroupCopyingAndScreenshots.rawValue) }
         set { UserDefaults.standard.set(newValue, forKey: Keys.allowGroupCopyingAndScreenshots.rawValue) }
+    }
+
+    public var allowPaidMediaCopyingAndScreenshots: Bool {
+        get { UserDefaults.standard.bool(forKey: Keys.allowPaidMediaCopyingAndScreenshots.rawValue) }
+        set { UserDefaults.standard.set(newValue, forKey: Keys.allowPaidMediaCopyingAndScreenshots.rawValue) }
     }
     
     @UserDefault(key: Keys.inputToolbar.rawValue)

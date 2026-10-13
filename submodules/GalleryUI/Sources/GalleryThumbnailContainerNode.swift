@@ -5,6 +5,7 @@ import Display
 import SwiftSignalKit
 
 public protocol GalleryThumbnailItem {
+    var captureProtected: Bool { get }
     func isEqual(to: GalleryThumbnailItem) -> Bool
     func image(synchronous: Bool) -> (Signal<(TransformImageArguments) -> DrawingContext?, NoError>, CGSize)
 }
@@ -23,6 +24,7 @@ private final class GalleryThumbnailItemNode: ASDisplayNode {
         self.maxWidth = maxWidth
         
         self.imageNode = TransformImageNode()
+        self.imageNode.captureProtected = item.captureProtected
         self.imageContainerNode = ASDisplayNode()
         self.imageContainerNode.clipsToBounds = true
         self.imageContainerNode.cornerRadius = 2.0

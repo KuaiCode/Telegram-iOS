@@ -18,6 +18,7 @@ private enum SGProControllerSection: Int32, SGItemListSection {
 private enum SGProBoolSetting: Hashable {
     case ignoreAppleTerms
     case allowGroupCopyingAndScreenshots
+    case allowPaidMediaCopyingAndScreenshots
 }
 
 private enum SGProDisclosureLink: String {
@@ -34,7 +35,9 @@ private func SGProControllerEntries(presentationData: PresentationData) -> [SGPr
         .notice(id: 3, section: .restrictions, text: "Settings.Advance.IgnoreAppleTerms.Notice".i18n(lang)),
         .toggle(id: 4, section: .restrictions, settingName: .allowGroupCopyingAndScreenshots, value: SGSimpleSettings.shared.allowGroupCopyingAndScreenshots, text: "Settings.Advance.AllowGroupCopyingAndScreenshots".i18n(lang), enabled: true),
         .notice(id: 5, section: .restrictions, text: "Settings.Advance.AllowGroupCopyingAndScreenshots.Notice".i18n(lang)),
-        .notice(id: 6, section: .restrictions, text: "Settings.Advance.RestrictionsRestart".i18n(lang))
+        .toggle(id: 6, section: .restrictions, settingName: .allowPaidMediaCopyingAndScreenshots, value: SGSimpleSettings.shared.allowPaidMediaCopyingAndScreenshots, text: "Settings.Advance.AllowPaidMediaCopyingAndScreenshots".i18n(lang), enabled: SGSimpleSettings.shared.allowGroupCopyingAndScreenshots),
+        .notice(id: 7, section: .restrictions, text: "Settings.Advance.AllowPaidMediaCopyingAndScreenshots.Notice".i18n(lang)),
+        .notice(id: 8, section: .restrictions, text: "Settings.Advance.RestrictionsRestart".i18n(lang))
     ]
 }
 
@@ -52,6 +55,8 @@ public func sgProController(context: AccountContext) -> ViewController {
             SGSimpleSettings.shared.ignoreAppleTerms = value
         case .allowGroupCopyingAndScreenshots:
             SGSimpleSettings.shared.allowGroupCopyingAndScreenshots = value
+        case .allowPaidMediaCopyingAndScreenshots:
+            SGSimpleSettings.shared.allowPaidMediaCopyingAndScreenshots = value
         }
         settingsUpdated.set(value)
     }, openDisclosureLink: { _ in

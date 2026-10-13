@@ -11,6 +11,7 @@ import GalleryUI
 import Tuples
 
 private struct InstantImageGalleryThumbnailItem: GalleryThumbnailItem {
+    let captureProtected: Bool = false
     let account: Account
     let userLocation: MediaResourceUserLocation
     let mediaReference: AnyMediaReference

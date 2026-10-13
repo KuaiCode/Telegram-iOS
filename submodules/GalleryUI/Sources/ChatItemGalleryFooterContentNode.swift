@@ -2269,7 +2269,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
         }
     }
     
-    func setFramePreviewImage(image: UIImage?, isSecret: Bool) {
+    func setFramePreviewImage(image: UIImage?, captureProtected: Bool) {
         if let image = image {
             let videoFramePreviewNode: ASImageNode
             let videoFrameTextNode: ImmediateTextNode
@@ -2306,7 +2306,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
             videoFramePreviewNode.subnodes?.first?.alpha = 0.0
             let updateLayout = videoFramePreviewNode.image?.size != image.size
             videoFramePreviewNode.image = image
-            setLayerDisableScreenshots(videoFramePreviewNode.layer, isSecret)
+            setLayerDisableScreenshots(videoFramePreviewNode.layer, captureProtected)
             if updateLayout, let validLayout = self.validLayout {
                 let _ = self.updateLayout(size: validLayout.0, metrics: validLayout.1, leftInset: validLayout.2, rightInset: validLayout.3, bottomInset: validLayout.4, contentInset: validLayout.5, transition: .immediate)
             }

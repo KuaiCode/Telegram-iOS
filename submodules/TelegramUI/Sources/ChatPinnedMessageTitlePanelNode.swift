@@ -292,7 +292,8 @@ final class ChatPinnedMessageTitlePanelNode: ChatTitleAccessoryPanelNode {
         }
         self.isReplyThread = isReplyThread
         
-        self.captureProtected = (interfaceState.copyProtectionEnabled && interfaceState.chatLocation.peerId?.allowsGroupCopyingAndScreenshots != true) || interfaceState.myCopyProtectionEnabled
+        let peerCaptureProtected = interfaceState.copyProtectionEnabled && interfaceState.chatLocation.peerId?.allowsGroupCopyingAndScreenshots != true
+        self.captureProtected = (interfaceState.pinnedMessage?.message.isCopyProtectedForLocalUse(peerIsCopyProtected: interfaceState.copyProtectionEnabled) ?? peerCaptureProtected) || interfaceState.myCopyProtectionEnabled
         
         self.contextContainer.isGestureEnabled = !isReplyThread
         
@@ -904,8 +905,15 @@ final class ChatPinnedMessageTitlePanelNode: ChatTitleAccessoryPanelNode {
             animationTransition.updateAlpha(node: strongSelf.imageNodeContainer, alpha: 0.0, beginWithCurrentState: true)
         }
         
+        let imageCaptureProtected = message.isCopyProtectedForLocalUse()
+        // Clear protected pixels before dropping capture protection for a different thumbnail.
+        if updateImageSignal != nil && strongSelf.imageNode.captureProtected && !imageCaptureProtected {
+            strongSelf.imageNode.layer.removeAnimation(forKey: "contents")
+            strongSelf.imageNode.reset()
+        }
+        strongSelf.imageNode.captureProtected = imageCaptureProtected
         if let updateImageSignal = updateImageSignal {
-            strongSelf.imageNode.setSignal(updateImageSignal)
+            strongSelf.imageNode.setSignal(updateImageSignal, dispatchOnDisplayLink: false)
         }
         if let updatedFetchMediaSignal = updatedFetchMediaSignal {
             strongSelf.fetchDisposable.set(updatedFetchMediaSignal.startStrict())

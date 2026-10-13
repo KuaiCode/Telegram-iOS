@@ -59,11 +59,13 @@ enum ChatMediaGalleryThumbnail: Equatable {
 }
 
 final class ChatMediaGalleryThumbnailItem: GalleryThumbnailItem {
+    let captureProtected: Bool
     private let account: Account
     private let userLocation: MediaResourceUserLocation
     private let thumbnail: ChatMediaGalleryThumbnail
     
-    init?(account: Account, userLocation: MediaResourceUserLocation, mediaReference: AnyMediaReference) {
+    init?(account: Account, userLocation: MediaResourceUserLocation, mediaReference: AnyMediaReference, captureProtected: Bool) {
+        self.captureProtected = captureProtected
         self.account = account
         self.userLocation = userLocation
         if let imageReference = mediaReference.concrete(TelegramMediaImage.self) {
@@ -81,7 +83,7 @@ final class ChatMediaGalleryThumbnailItem: GalleryThumbnailItem {
     
     func isEqual(to: GalleryThumbnailItem) -> Bool {
         if let to = to as? ChatMediaGalleryThumbnailItem {
-            return self.thumbnail == to.thumbnail
+            return self.thumbnail == to.thumbnail && self.captureProtected == to.captureProtected
         } else {
             return false
         }
@@ -170,6 +172,7 @@ class ChatImageGalleryItem: GalleryItem {
     }
     
     func thumbnailItem() -> (Int64, GalleryThumbnailItem)? {
+        let captureProtected = self.message.id.peerId.namespace == Namespaces.Peer.SecretChat || self.message.isCopyProtectedForLocalUse(peerIsCopyProtected: self.peerIsCopyProtected) || self.isSecret
         if let paidContent = self.message.paidContent {
             var mediaReference: AnyMediaReference?
             var mediaIndex: Int = 0
@@ -180,7 +183,7 @@ class ChatImageGalleryItem: GalleryItem {
                 mediaReference = .message(message: MessageReference(self.message), media: m)
             }
             if let mediaReference {
-                if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(self.message.id.peerId), mediaReference: mediaReference) {
+                if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(self.message.id.peerId), mediaReference: mediaReference, captureProtected: captureProtected) {
                     return (0, item)
                 }
             }
@@ -190,7 +193,7 @@ class ChatImageGalleryItem: GalleryItem {
                 mediaReference = .message(message: MessageReference(self.message), media: optionMedia)
             }
             if let mediaReference {
-                if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(self.message.id.peerId), mediaReference: mediaReference) {
+                if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(self.message.id.peerId), mediaReference: mediaReference, captureProtected: captureProtected) {
                     return (0, item)
                 }
             }
@@ -204,7 +207,7 @@ class ChatImageGalleryItem: GalleryItem {
                 }
             }
             if let mediaReference {
-                if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(self.message.id.peerId), mediaReference: mediaReference) {
+                if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(self.message.id.peerId), mediaReference: mediaReference, captureProtected: captureProtected) {
                     return (Int64(id), item)
                 }
             }
@@ -359,7 +362,7 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
     }
     
     private func setupImageRecognition(_ generate: @escaping (TransformImageArguments) -> DrawingContext?, dimensions: PixelDimensions) {
-        guard let message = self.message, !message.isCopyProtectedForLocalUse() && message.paidContent == nil else {
+        guard let message = self.message, !message.isCopyProtectedForLocalUse() else {
             return
         }
         let displaySize = dimensions.cgSize.fitted(CGSize(width: 1280.0, height: 1280.0)).dividedByScreenScale().integralFloor
@@ -460,7 +463,7 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
         self.translateToLanguage = translateToLanguage
         self.peerIsCopyProtected = peerIsCopyProtected
         self.isSecret = isSecret
-        self.imageNode.captureProtected = message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.isCopyProtectedForLocalUse(peerIsCopyProtected: peerIsCopyProtected) || isSecret || message.paidContent != nil
+        self.imageNode.captureProtected = message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.isCopyProtectedForLocalUse(peerIsCopyProtected: peerIsCopyProtected) || isSecret
         self.updateFooter(animated: false)
         
         var title: String?

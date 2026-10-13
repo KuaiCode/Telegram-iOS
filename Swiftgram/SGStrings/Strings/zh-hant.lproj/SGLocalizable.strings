@@ -3,7 +3,9 @@
 "Settings.Advance.IgnoreAppleTerms" = "顯示 appleterms-ios 內容";
 "Settings.Advance.IgnoreAppleTerms.Notice" = "僅取消 appleterms-ios 的本機顯示限制，不改變伺服器存取權限。";
 "Settings.Advance.AllowGroupCopyingAndScreenshots" = "群組、頻道複製與截圖";
-"Settings.Advance.AllowGroupCopyingAndScreenshots.Notice" = "允許一般群組和頻道中的本機複製與截圖。秘密聊天、一次性和付費媒體仍受保護。";
+"Settings.Advance.AllowGroupCopyingAndScreenshots.Notice" = "允許一般群組和頻道中的本機複製與截圖。秘密聊天和一次性媒體仍受保護，付費媒體由下方開關個別控制。";
+"Settings.Advance.AllowPaidMediaCopyingAndScreenshots" = "同時允許付費媒體複製與截圖";
+"Settings.Advance.AllowPaidMediaCopyingAndScreenshots.Notice" = "須開啟「群組、頻道複製與截圖」。同時允許複製和截圖群組、頻道內已解鎖的付費媒體，包括置頂預覽。不能解鎖尚未購買的內容。";
 "Settings.Advance.RestrictionsRestart" = "變更以上開關後，請重新啟動 Airygram。";
 
 "Settings.Tabs.Header" = "頁籤";

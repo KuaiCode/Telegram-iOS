@@ -50,6 +50,13 @@ public class UniversalVideoGalleryItem: GalleryItem {
     public var id: AnyHashable {
         return self.content.id
     }
+
+    var captureProtected: Bool {
+        if case let .message(message, _) = self.contentInfo {
+            return self.isSecret || message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.isCopyProtectedForLocalUse(peerIsCopyProtected: self.peerIsCopyProtected) || message.containsSecretMedia || message.minAutoremoveOrClearTimeout == viewOnceTimeout
+        }
+        return self.isSecret
+    }
     
     let context: AccountContext
     let presentationData: PresentationData
@@ -130,7 +137,7 @@ public class UniversalVideoGalleryItem: GalleryItem {
                     mediaReference = .message(message: MessageReference(message), media: m)
                 }
                 if let mediaReference = mediaReference {
-                    if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(message.id.peerId), mediaReference: mediaReference) {
+                    if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(message.id.peerId), mediaReference: mediaReference, captureProtected: self.captureProtected) {
                         return (0, item)
                     }
                 }
@@ -140,7 +147,7 @@ public class UniversalVideoGalleryItem: GalleryItem {
                     mediaReference = .message(message: MessageReference(message), media: optionMedia)
                 }
                 if let mediaReference {
-                    if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(message.id.peerId), mediaReference: mediaReference) {
+                    if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(message.id.peerId), mediaReference: mediaReference, captureProtected: self.captureProtected) {
                         return (0, item)
                     }
                 }
@@ -154,13 +161,13 @@ public class UniversalVideoGalleryItem: GalleryItem {
                     }
                 }
                 if let mediaReference = mediaReference {
-                    if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(message.id.peerId), mediaReference: mediaReference) {
+                    if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .peer(message.id.peerId), mediaReference: mediaReference, captureProtected: self.captureProtected) {
                         return (Int64(id), item)
                     }
                 }
             }
         } else if case let .webPage(webPage, media, _) = contentInfo, let file = media as? TelegramMediaFile  {
-            if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .other, mediaReference: .webPage(webPage: WebpageReference(webPage), media: file)) {
+            if let item = ChatMediaGalleryThumbnailItem(account: self.context.account, userLocation: .other, mediaReference: .webPage(webPage: WebpageReference(webPage), media: file), captureProtected: self.captureProtected) {
                 return (0, item)
             }
         }
@@ -1150,10 +1157,10 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
                 case .waitingForData:
                     strongSelf.footerContentNode.setFramePreviewImageIsLoading()
                 case let .image(image):
-                    strongSelf.footerContentNode.setFramePreviewImage(image: image, isSecret: item.isSecret)
+                    strongSelf.footerContentNode.setFramePreviewImage(image: image, captureProtected: item.captureProtected)
                 }
             } else {
-                strongSelf.footerContentNode.setFramePreviewImage(image: nil, isSecret: false)
+                strongSelf.footerContentNode.setFramePreviewImage(image: nil, captureProtected: false)
             }
         }).strict()
         

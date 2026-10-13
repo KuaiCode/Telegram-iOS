@@ -3,7 +3,9 @@
 "Settings.Advance.IgnoreAppleTerms" = "Show appleterms-ios Content";
 "Settings.Advance.IgnoreAppleTerms.Notice" = "Removes the local appleterms-ios display restriction. Server access permissions still apply.";
 "Settings.Advance.AllowGroupCopyingAndScreenshots" = "Allow Copy & Screenshots";
-"Settings.Advance.AllowGroupCopyingAndScreenshots.Notice" = "Allows local copying and screenshots in groups and channels. Secret chats, view-once and paid media remain protected.";
+"Settings.Advance.AllowGroupCopyingAndScreenshots.Notice" = "Allows local copying and screenshots in groups and channels. Secret chats and view-once media remain protected. Paid media uses the separate switch below.";
+"Settings.Advance.AllowPaidMediaCopyingAndScreenshots" = "Also Allow Paid Media";
+"Settings.Advance.AllowPaidMediaCopyingAndScreenshots.Notice" = "Requires Allow Copy & Screenshots. Also allows local copying and screenshots of already unlocked paid media in groups and channels, including pinned previews. Does not unlock purchases.";
 "Settings.Advance.RestrictionsRestart" = "Restart Airygram after changing these switches.";
 
 "Settings.Tabs.Header" = "TABS";

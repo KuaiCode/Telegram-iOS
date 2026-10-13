@@ -1047,7 +1047,7 @@ final class HLSVideoJSNativeContentNode: ASDisplayNode, UniversalVideoContentNod
     
     private var contextDisposable: Disposable?
     
-    init(context: AccountContext, postbox: Postbox, audioSessionManager: ManagedAudioSession, userLocation: MediaResourceUserLocation, fileReference: FileMediaReference, streamVideo: Bool, loopVideo: Bool, enableSound: Bool, baseRate: Double, fetchAutomatically: Bool, onlyFullSizeThumbnail: Bool, useLargeThumbnail: Bool, autoFetchFullSizeThumbnail: Bool, codecConfiguration: HLSCodecConfiguration) {
+    init(context: AccountContext, postbox: Postbox, audioSessionManager: ManagedAudioSession, userLocation: MediaResourceUserLocation, fileReference: FileMediaReference, streamVideo: Bool, loopVideo: Bool, enableSound: Bool, baseRate: Double, fetchAutomatically: Bool, onlyFullSizeThumbnail: Bool, useLargeThumbnail: Bool, autoFetchFullSizeThumbnail: Bool, captureProtected: Bool, codecConfiguration: HLSCodecConfiguration) {
         self.instanceId = HLSVideoJSNativeContentNode.nextInstanceId
         HLSVideoJSNativeContentNode.nextInstanceId += 1
         
@@ -1074,6 +1074,7 @@ final class HLSVideoJSNativeContentNode: ASDisplayNode, UniversalVideoContentNod
         }
         
         self.imageNode = TransformImageNode()
+        self.imageNode.captureProtected = captureProtected
         
         var playerSource: HLSJSServerSource?
         if let qualitySet = HLSQualitySet(baseFile: fileReference, codecConfiguration: codecConfiguration) {
@@ -1089,7 +1090,7 @@ final class HLSVideoJSNativeContentNode: ASDisplayNode, UniversalVideoContentNod
         intrinsicDimensions.height = floor(intrinsicDimensions.height / UIScreenScale)
         self.intrinsicDimensions = intrinsicDimensions
         
-        self.playerNode = MediaPlayerNode()
+        self.playerNode = MediaPlayerNode(captureProtected: captureProtected)
         
         var onSeeked: (() -> Void)?
         self.player = ChunkMediaPlayerV2(

@@ -1738,7 +1738,6 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                         print("reload media")
                     }
                     
-                    var isExtendedMedia = false
                     if statusUpdated {
                         var media = media
                         var extendedMedia: TelegramExtendedMedia?
@@ -1751,7 +1750,6 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                             }
                         }
                         if let extendedMedia, case let .full(fullMedia) = extendedMedia, !presentationData.isPreview {
-                            isExtendedMedia = true
                             media = fullMedia
                         }
                         if let storyMedia = media as? TelegramMediaStory, let storyItem = message.associatedStories[storyMedia.storyId]?.get(Stories.StoredItem.self) {
@@ -2007,6 +2005,7 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                                     let streamVideo = isMediaStreamable(message: EngineMessage(message), media: updatedVideoFile)
                                     let loopVideo = updatedVideoFile.isAnimated
                                     
+                                    let captureProtected = message.isCopyProtectedForLocalUse(peerIsCopyProtected: associatedData.isCopyProtectionEnabled) || message.containsSecretMedia || message.minAutoremoveOrClearTimeout == viewOnceTimeout
                                     let videoContent: UniversalVideoContent
                                     if useInlineHLS && NativeVideoContent.isHLSVideo(file: updatedVideoFile) {
                                         videoContent = HLSVideoContent(
@@ -2018,6 +2017,7 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                                             fetchAutomatically: false,
                                             onlyFullSizeThumbnail: (onlyFullSizeVideoThumbnail ?? false),
                                             autoFetchFullSizeThumbnail: true,
+                                            captureProtected: captureProtected,
                                             codecConfiguration: HLSCodecConfiguration(context: context)
                                         )
                                     } else {
@@ -2034,7 +2034,7 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                                             autoFetchFullSizeThumbnail: true,
                                             continuePlayingWithoutSoundOnLostAudioSession: isInlinePlayableVideo,
                                             placeholderColor: emptyColor,
-                                            captureProtected: message.isCopyProtectedForLocalUse(peerIsCopyProtected: associatedData.isCopyProtectionEnabled) || isExtendedMedia,
+                                            captureProtected: captureProtected,
                                             storeAfterDownload: { [weak context] in
                                                 guard let context, let peerId else {
                                                     return
@@ -2336,7 +2336,7 @@ public final class ChatMessageInteractiveMediaNode: ASDisplayNode, GalleryItemTr
                             }
                             
                             if let updateImageSignal = updateImageSignal {
-                                strongSelf.imageNode.captureProtected = message.isCopyProtectedForLocalUse(peerIsCopyProtected: associatedData.isCopyProtectionEnabled) || isExtendedMedia
+                                strongSelf.imageNode.captureProtected = message.isCopyProtectedForLocalUse(peerIsCopyProtected: associatedData.isCopyProtectionEnabled)
                                 strongSelf.imageNode.setSignal(updateImageSignal(synchronousLoads, false), attemptSynchronously: synchronousLoads)
 
                                 var imageDimensions: CGSize?

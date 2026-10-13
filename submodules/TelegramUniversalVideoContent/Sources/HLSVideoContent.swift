@@ -279,9 +279,10 @@ public final class HLSVideoContent: UniversalVideoContent {
     let onlyFullSizeThumbnail: Bool
     let useLargeThumbnail: Bool
     let autoFetchFullSizeThumbnail: Bool
+    let captureProtected: Bool
     let codecConfiguration: HLSCodecConfiguration
     
-    public init(id: NativeVideoContentId, userLocation: MediaResourceUserLocation, fileReference: FileMediaReference, streamVideo: Bool = false, loopVideo: Bool = false, enableSound: Bool = true, baseRate: Double = 1.0, fetchAutomatically: Bool = true, onlyFullSizeThumbnail: Bool = false, useLargeThumbnail: Bool = false, autoFetchFullSizeThumbnail: Bool = false, codecConfiguration: HLSCodecConfiguration) {
+    public init(id: NativeVideoContentId, userLocation: MediaResourceUserLocation, fileReference: FileMediaReference, streamVideo: Bool = false, loopVideo: Bool = false, enableSound: Bool = true, baseRate: Double = 1.0, fetchAutomatically: Bool = true, onlyFullSizeThumbnail: Bool = false, useLargeThumbnail: Bool = false, autoFetchFullSizeThumbnail: Bool = false, captureProtected: Bool, codecConfiguration: HLSCodecConfiguration) {
         self.id = id
         self.userLocation = userLocation
         self.nativeId = id
@@ -296,11 +297,12 @@ public final class HLSVideoContent: UniversalVideoContent {
         self.onlyFullSizeThumbnail = onlyFullSizeThumbnail
         self.useLargeThumbnail = useLargeThumbnail
         self.autoFetchFullSizeThumbnail = autoFetchFullSizeThumbnail
+        self.captureProtected = captureProtected
         self.codecConfiguration = codecConfiguration
     }
     
     public func makeContentNode(context: AccountContext, postbox: Postbox, audioSession: ManagedAudioSession) -> UniversalVideoContentNode & ASDisplayNode {
-        return HLSVideoJSNativeContentNode(context: context, postbox: postbox, audioSessionManager: audioSession, userLocation: self.userLocation, fileReference: self.fileReference, streamVideo: self.streamVideo, loopVideo: self.loopVideo, enableSound: self.enableSound, baseRate: self.baseRate, fetchAutomatically: self.fetchAutomatically, onlyFullSizeThumbnail: self.onlyFullSizeThumbnail, useLargeThumbnail: self.useLargeThumbnail, autoFetchFullSizeThumbnail: self.autoFetchFullSizeThumbnail, codecConfiguration: self.codecConfiguration)
+        return HLSVideoJSNativeContentNode(context: context, postbox: postbox, audioSessionManager: audioSession, userLocation: self.userLocation, fileReference: self.fileReference, streamVideo: self.streamVideo, loopVideo: self.loopVideo, enableSound: self.enableSound, baseRate: self.baseRate, fetchAutomatically: self.fetchAutomatically, onlyFullSizeThumbnail: self.onlyFullSizeThumbnail, useLargeThumbnail: self.useLargeThumbnail, autoFetchFullSizeThumbnail: self.autoFetchFullSizeThumbnail, captureProtected: self.captureProtected, codecConfiguration: self.codecConfiguration)
     }
     
     public func isEqual(to other: UniversalVideoContent) -> Bool {
